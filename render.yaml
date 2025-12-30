@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: auction-server
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: cd server && npm install
+    startCommand: cd server && npm start
+    envVars:
+      - key: PORT
+        value: 10000
+    autoDeploy: false
