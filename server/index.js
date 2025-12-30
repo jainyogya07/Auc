@@ -19,6 +19,11 @@ app.use(express.json());
 
 const server = http.createServer(app);
 
+// Health check route for Render
+app.get('/', (req, res) => {
+    res.send('Auction Server is Running');
+});
+
 const io = new Server(server, {
     cors: {
         origin: "*",
@@ -350,7 +355,7 @@ io.on('connection', (socket) => {
     });
 });
 
-server.listen(PORT, async () => {
+server.listen(PORT, '0.0.0.0', async () => {
     await connectDB();
     await auctionManager.initialize();
     console.log(`Server running on http://localhost:${PORT}`);
