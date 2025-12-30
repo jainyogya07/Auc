@@ -351,7 +351,7 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, async () => {
-    connectDB();
+    await connectDB();
     await auctionManager.initialize();
     console.log(`Server running on http://localhost:${PORT}`);
 });
