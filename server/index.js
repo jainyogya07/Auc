@@ -240,16 +240,13 @@ io.on('connection', (socket) => {
     });
 
     socket.on('team:submit-nomination', async ({ playerIds }) => {
-        // Any team can submit? Yes, if authorized.
-        // Identify team by socket user logic if strictly enforced, but here we trust the teamId claim?
-        // Wait, socket.user (from middleware) has username, role.
-        // For teams, username is usually team ID or related. 
-        // Let's assume we pass teamId or derive it. 
-        // The middleware `auth.js` verifies token. User schema has username like 'csk', 'mi'.
-        // So socket.user.username is likely the teamId.
+        // Team ID is passed in the token during login
+        if (!socket.user || socket.user.role !== 'team') {
+            return socket.emit('error', 'Only teams can submit nominations');
+        }
 
         try {
-            const teamId = socket.user.username; // Assuming username === teamId
+            const teamId = socket.user.teamId; // Use teamId from token, NOT username
             const newState = await auctionManager.submitNomination(teamId, playerIds);
             io.emit('auction:update', newState);
         } catch (err) {
@@ -261,9 +258,9 @@ io.on('connection', (socket) => {
         if (socket.user.role !== 'admin') return;
         try {
             const state = await auctionManager.finalizeNominations();
-            io.emit('auction:state', state);
+            io.emit('auction:update', state);
         } catch (err) {
-            socket.emit('auction:error', { message: err.message });
+            socket.emit('error', err.message);
         }
     });
 
@@ -271,9 +268,9 @@ io.on('connection', (socket) => {
         if (socket.user.role !== 'admin') return;
         try {
             const state = await auctionManager.updateSetOrder(newOrder);
-            io.emit('auction:state', state);
+            io.emit('auction:update', state);
         } catch (err) {
-            socket.emit('auction:error', { message: err.message });
+            socket.emit('error', err.message);
         }
     });
 
