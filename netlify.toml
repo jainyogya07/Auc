@@ -1,0 +1,12 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  VITE_BACKEND_URL = "https://auc-jfny.onrender.com"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
