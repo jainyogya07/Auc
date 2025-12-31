@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuctionStore } from '../../store/useAuctionStore';
 import { Plus, Search, Edit2, X, Trash2 } from 'lucide-react';
 import type { Player } from '../../types';
@@ -82,7 +83,7 @@ export default function AdminPlayers() {
                             <X className="w-5 h-5" />
                         </button>
                     </div>
-                    <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
+                    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <label className="text-sm text-slate-400">Player Name</label>
                             <input
@@ -151,7 +152,7 @@ export default function AdminPlayers() {
                         </div>
 
 
-                        <div className="col-span-2 pt-4 flex justify-end gap-3">
+                        <div className="col-span-1 md:col-span-2 pt-4 flex justify-end gap-3 bottom-0 sticky md:relative bg-slate-900 md:bg-transparent pb-0">
                             <button type="button" onClick={() => setIsAdding(false)} className="px-4 py-2 text-slate-400 hover:text-white">Cancel</button>
                             <button type="submit" className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 font-medium">
                                 {editingId ? 'Update Player' : 'Add Player'}
@@ -162,34 +163,88 @@ export default function AdminPlayers() {
             )}
 
             <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                <table className="w-full text-left">
-                    <thead>
-                        <tr className="bg-slate-800/50 border-b border-slate-800">
-                            <th className="px-6 py-4 text-sm font-medium text-slate-400">Name</th>
-                            <th className="px-6 py-4 text-sm font-medium text-slate-400">Role</th>
-                            <th className="px-6 py-4 text-sm font-medium text-slate-400">Country</th>
-                            <th className="px-6 py-4 text-sm font-medium text-slate-400 text-right">Base Price</th>
-                            <th className="px-6 py-4 text-sm font-medium text-slate-400 text-center">Set</th>
-                            <th className="px-6 py-4 text-sm font-medium text-slate-400 text-center">Status</th>
-                            <th className="px-6 py-4 text-sm font-medium text-slate-400 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800">
-                        {filteredPlayers.map(player => (
-                            <tr key={player.id} className="hover:bg-slate-800/30 transition-colors">
-                                <td className="px-6 py-4">
-                                    <div className="font-medium text-slate-200">{player.name}</div>
-                                    {player.isForeign && <span className="text-xs text-amber-500">Foreign</span>}
-                                </td>
-                                <td className="px-6 py-4 text-slate-400">{player.role}</td>
-                                <td className="px-6 py-4 text-slate-400">{player.country}</td>
-                                <td className="px-6 py-4 text-slate-200 text-right font-mono">₹ {player.basePrice} Cr</td>
-                                <td className="px-6 py-4 text-slate-400 text-center">{player.set}</td>
-                                <td className="px-6 py-4 text-center">
-                                    <StatusBadge status={player.status} />
-                                </td>
-                                <td className="px-6 py-4 text-right">
-                                    <button onClick={() => startEdit(player)} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-blue-400 transition-colors">
+                <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="border-b border-slate-700 text-slate-400 text-sm">
+                                <th className="p-4 font-medium">Name</th>
+                                <th className="p-4 font-medium">Role</th>
+                                <th className="p-4 font-medium">Country</th>
+                                <th className="p-4 font-medium">Set</th>
+                                <th className="p-4 font-medium">Base Price</th>
+                                <th className="p-4 font-medium">Status</th>
+                                <th className="p-4 font-medium text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                            {filteredPlayers.map((player) => (
+                                <tr key={player.id} className="group hover:bg-slate-800/50 transition-colors">
+                                    <td className="p-4 font-medium text-white">{player.name}</td>
+                                    <td className="p-4 text-slate-300">{player.role}</td>
+                                    <td className="p-4 text-slate-300">{player.country}</td>
+                                    <td className="p-4 text-slate-300">{player.set}</td>
+                                    <td className="p-4 text-emerald-400 font-mono">₹{player.basePrice}Cr</td>
+                                    <td className="p-4">
+                                        <div className="flex items-center gap-2">
+                                            <StatusBadge status={player.status} />
+                                            {(player.status === 'S' || player.status === 'U') && (
+                                                <RTMButton player={player} />
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="p-4 text-right">
+                                        <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                onClick={() => startEdit(player)}
+                                                className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-blue-400 transition-colors"
+                                                title="Edit"
+                                            >
+                                                <Edit2 className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    if (confirm(`Are you sure you want to delete ${player.name}?`)) {
+                                                        deletePlayer(player.id);
+                                                    }
+                                                }}
+                                                className="p-2 bg-slate-800 hover:bg-red-900/20 rounded-lg text-red-400 transition-colors"
+                                                title="Delete"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Mobile List View */}
+                <div className="md:hidden space-y-3 p-4"> {/* Added p-4 for padding in mobile view */}
+                    {filteredPlayers.map((player) => (
+                        <div key={player.id} className="bg-slate-900/50 p-4 rounded-xl border border-slate-800/50 flex flex-col gap-3">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h3 className="text-white font-medium text-lg">{player.name}</h3>
+                                    <div className="text-sm text-slate-400 flex gap-2 mt-1">
+                                        <span>{player.role}</span>
+                                        <span>•</span>
+                                        <span>{player.country}</span>
+                                    </div>
+                                </div>
+                                <div className="text-emerald-400 font-mono font-medium">
+                                    ₹{player.basePrice}Cr
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-3 border-t border-slate-800/50 mt-1">
+                                <span className="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded">Set {player.set}</span>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => startEdit(player)}
+                                        className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-blue-400 transition-colors"
+                                    >
                                         <Edit2 className="w-4 h-4" />
                                     </button>
                                     <button
@@ -198,26 +253,24 @@ export default function AdminPlayers() {
                                                 deletePlayer(player.id);
                                             }
                                         }}
-                                        className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-400 transition-colors ml-2"
+                                        className="p-2 bg-slate-800 hover:bg-red-900/20 rounded-lg text-red-400 transition-colors"
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </button>
+                                </div>
+                            </div>
 
-                                    {(player.status === 'S' || player.status === 'U') && (
+                            <div className="flex items-center justify-between pt-2 border-t border-slate-800/50 mt-1">
+                                <StatusBadge status={player.status} />
+                                {(player.status === 'S' || player.status === 'U') && (
+                                    <div className="scale-90 origin-right">
                                         <RTMButton player={player} />
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
-                        {filteredPlayers.length === 0 && (
-                            <tr>
-                                <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
-                                    No players found.
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     );
@@ -293,7 +346,7 @@ function RTMButton({ player }: { player: Player }) {
                 <span className="font-bold text-xs border border-current px-1 rounded">RTM / Retain</span>
             </button>
 
-            {isOpen && (
+            {isOpen && createPortal(
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-md shadow-2xl animate-in scale-95 duration-200">
                         <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
@@ -374,7 +427,8 @@ function RTMButton({ player }: { player: Player }) {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </>
     );

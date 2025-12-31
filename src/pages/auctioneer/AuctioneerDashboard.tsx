@@ -97,7 +97,7 @@ export default function AuctioneerDashboard() {
     }
 
     return (
-        <div className="h-[calc(100vh-8rem)] flex flex-col gap-6">
+        <div className="min-h-[calc(100vh-8rem)] flex flex-col gap-6">
             {/* Top Bar - Current Status */}
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-900/50 border border-slate-800 p-4 md:p-6 rounded-2xl">
                 <div>

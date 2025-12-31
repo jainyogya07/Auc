@@ -56,7 +56,7 @@ export default function TeamBidHistory() {
                 Bid History
             </h1>
 
-            <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 backdrop-blur-sm">
+            <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-4 md:p-6 backdrop-blur-sm">
                 <div className="space-y-4">
                     {myEvents.length > 0 ? (
                         myEvents.map((event) => (

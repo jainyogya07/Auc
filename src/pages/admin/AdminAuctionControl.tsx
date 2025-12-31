@@ -23,6 +23,7 @@ export default function AdminAuctionControl() {
 
     // Hike Input State
     const [_hikeAmount, setHikeAmount] = useState(currentBid);
+    const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
     // Sync local state when bid changes
     useEffect(() => {
@@ -133,13 +134,7 @@ export default function AdminAuctionControl() {
                             {/* Reset Auction Button */}
                             <div className="mt-6 pt-6 border-t border-slate-700">
                                 <button
-                                    onClick={() => {
-                                        if (confirm("⚠️ Are you ABSOLUTELY SURE you want to RESET the entire auction?\n\nThis will:\n• Clear ALL player sales\n• Reset ALL team budgets\n• Delete bid history\n• Return to initial state\n\nThis action CANNOT be undone!")) {
-                                            if (confirm("FINAL WARNING: Type OK to confirm reset.")) {
-                                                resetAuction();
-                                            }
-                                        }
-                                    }}
+                                    onClick={() => setIsResetModalOpen(true)}
                                     className="w-full py-3 bg-red-600/20 hover:bg-red-600/40 text-red-400 font-bold rounded-xl border border-red-600/50 flex items-center justify-center gap-2 transition-all"
                                 >
                                     <RotateCcw className="w-5 h-5" />
@@ -149,6 +144,44 @@ export default function AdminAuctionControl() {
                             </div>
                         </div>
                     </div>
+
+                    {/* Custom Reset Modal */}
+                    {isResetModalOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+                            <div className="bg-slate-900 border-2 border-red-600/50 p-6 rounded-2xl w-full max-w-md shadow-2xl relative">
+                                <h3 className="text-xl font-bold text-red-500 mb-4 flex items-center gap-2">
+                                    <AlertTriangle className="w-6 h-6" />
+                                    DANGER ZONE
+                                </h3>
+                                <p className="text-slate-300 mb-6 leading-relaxed">
+                                    Are you ABSOLUTELY SURE you want to reset the entire auction?
+                                    <br /><br />
+                                    <span className="text-slate-400 text-sm">
+                                        • Clears ALL player sales<br />
+                                        • Resets ALL team budgets<br />
+                                        • Deletes bid history
+                                    </span>
+                                </p>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setIsResetModalOpen(false)}
+                                        className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-xl transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            resetAuction();
+                                            setIsResetModalOpen(false);
+                                        }}
+                                        className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow-lg shadow-red-900/20 transition-colors"
+                                    >
+                                        YES, NUKE IT
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Nomination Phase Control */}
                     <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">

@@ -22,14 +22,29 @@ const playerSchema = new mongoose.Schema({
     name: { type: String, required: true },
     role: { type: String, required: true },
     country: { type: String, required: true },
+    stateAssociation: String,
+    dob: String,
+    age: Number,
+    specialism: String, // e.g., WICKETKEEPER, BATTER, BOWLER, ALL-ROUNDER
+    battingStyle: String, // e.g., RHB, LHB
+    bowlingStyle: String, // e.g., RIGHT ARM Off Spin
     basePrice: { type: Number, required: true },
     isForeign: { type: Boolean, default: false },
     status: { type: String, enum: ['U', 'S', 'US'], default: 'U' },
     set: { type: Number, default: 1 },
+    setLabel: String, // e.g., M1, BA1
     soldPrice: Number,
     soldTo: String, // Team ID
     soldVia: { type: String, enum: ['BID', 'RTM'], default: 'BID' }, // 'BID' or 'RTM'
     originalTeamId: String, // For RTM Eligibility
+    previousTeams: [String], // Array of team codes e.g. ['MI', 'RR']
+    category: { type: String, enum: ['C', 'U', 'A'], default: 'C' }, // Capped, Uncapped, Associate
+    caps: {
+        test: { type: Number, default: 0 },
+        odi: { type: Number, default: 0 },
+        t20: { type: Number, default: 0 },
+        ipl: { type: Number, default: 0 }
+    },
     stats: {
         matches: Number,
         runs: Number,

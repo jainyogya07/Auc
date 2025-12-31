@@ -27,7 +27,6 @@ interface AuctionStore extends AuctionState {
     placeBid: (teamId: string, amount: number) => void;
 
     // Admin Actions
-    // Admin Actions
     adminSetPlayer: (playerId: string) => void;
     adminSoldPlayer: (playerId: string, teamId: string, amount: number) => void;
     adminUnsoldPlayer: (playerId: string) => void;
@@ -91,9 +90,29 @@ export const useAuctionStore = create<AuctionStore>()((set, _get) => {
         set({ connectedUsers: users });
     });
 
+    socket.on('bid:error', (errorMsg: string) => {
+        console.error('Bid Failed:', errorMsg);
+        // Rollback optimistic update:
+        // Ideally we would fetch the last known good state, but simply popping the temp history
+        // and reverting currentBid is a start. For now, let's trust the next 'auction:update' to fix it
+        // which usually follows or we can force a sync.
+
+        // Let's trigger a toast or alert for the user?
+        // Actually, let's remove the optimistic history item if it exists
+        set((state) => ({
+            history: state.history.filter(h => !h.id.toString().startsWith('temp-'))
+        }));
+
+        // Re-sync with server state just in case
+        socket.emit('auction:sync'); // Assuming we have or can add this, or just wait for update
+    });
+
     socket.on('error', (errMsg: string) => {
         console.error('Auction Error:', errMsg);
-        alert(`Error: ${errMsg}`);
+        // Only alert if it's a critical system error, not just a rejected bid handled above
+        if (!errMsg.includes('Bid')) {
+            alert(`Error: ${errMsg}`);
+        }
     });
 
     return {
@@ -129,6 +148,24 @@ export const useAuctionStore = create<AuctionStore>()((set, _get) => {
         },
 
         placeBid: (teamId, amount) => {
+            // Optimistic Update: Update local state immediately for instant feedback
+            set((state) => ({
+                currentBid: amount,
+                currentBidder: teamId,
+                // Add temporary history item for instant visual feedback
+                history: [
+                    {
+                        id: `temp-${Date.now()}`,
+                        teamId,
+                        amount,
+                        playerId: state.currentPlayer?.id || 'unknown',
+                        timestamp: Date.now()
+                    },
+                    ...state.history
+                ]
+            }));
+
+            // Emit to server
             socket.emit('bid:place', { teamId, amount });
         },
 

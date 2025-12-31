@@ -45,7 +45,7 @@ export default function TeamSquad() {
 
 function RoleSection({ title, icon, players }: { title: string, icon: string, players: any[] }) {
     return (
-        <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 backdrop-blur-sm">
+        <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-4 md:p-6 backdrop-blur-sm">
             <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <span>{icon}</span> {title}
                 <span className="ml-auto text-xs bg-slate-800 text-slate-400 px-2 py-1 rounded-full">{players.length}</span>

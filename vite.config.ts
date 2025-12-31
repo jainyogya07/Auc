@@ -8,13 +8,14 @@ export default defineConfig({
     host: true, // Listen on all local IPs
     proxy: {
       '/api': {
-        target: 'http://localhost:4000',
+        target: 'http://192.168.1.11:4000', // Use network IP instead of localhost
         changeOrigin: true,
       },
       '/socket.io': {
-        target: 'http://localhost:4000',
+        target: 'http://192.168.1.11:4000', // Use network IP instead of localhost
         ws: true,
       },
     }
   }
 })
+

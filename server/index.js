@@ -348,6 +348,13 @@ io.on('connection', (socket) => {
         }
     });
 
+    // --- Chat System ---
+    socket.on('chat:message', (msg) => {
+        // Broadcast to all connected clients
+        // We could validate msg structure here or add server-timestamp
+        io.emit('chat:broadcast', msg);
+    });
+
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
         connectedUsers.delete(socket.id);

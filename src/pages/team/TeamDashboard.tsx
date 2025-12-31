@@ -19,6 +19,8 @@ export default function TeamDashboard() {
     const { nominations, submitNomination } = useAuctionStore();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedNominees, setSelectedNominees] = useState<string[]>([]);
+    const [showNominationConfirm, setShowNominationConfirm] = useState(false);
+    const [nominationError, setNominationError] = useState<string | null>(null);
 
     // Load existing nomination if any
     useEffect(() => {
@@ -44,16 +46,21 @@ export default function TeamDashboard() {
     const toggleNominee = (id: string) => {
         if (selectedNominees.includes(id)) {
             setSelectedNominees(prev => prev.filter(x => x !== id));
+            setNominationError(null);
         } else {
-            if (selectedNominees.length >= 10) return alert("Max 10 players allowed!");
+            if (selectedNominees.length >= 10) {
+                setNominationError("Max 10 players allowed!");
+                setTimeout(() => setNominationError(null), 3000);
+                return;
+            };
             setSelectedNominees(prev => [...prev, id]);
+            setNominationError(null);
         }
     };
 
     const handleSubmitNominations = () => {
-        if (confirm(`Submit ${selectedNominees.length} players for nomination?`)) {
-            submitNomination(selectedNominees);
-        }
+        submitNomination(selectedNominees);
+        setShowNominationConfirm(false);
     };
     // ------------------------------
 
@@ -72,7 +79,7 @@ export default function TeamDashboard() {
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             {/* Header Section */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 shadow-2xl p-8">
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 shadow-2xl p-4 md:p-8">
                 <div className="absolute top-0 right-0 -mt-16 -mr-16 p-4 opacity-[0.03]">
                     <Trophy className="w-96 h-96" />
                 </div>
@@ -90,7 +97,7 @@ export default function TeamDashboard() {
 
                     <button
                         onClick={() => navigate('/team/arena')}
-                        className="group flex items-center gap-3 px-8 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-2xl font-bold text-lg transition-all shadow-lg hover:shadow-emerald-500/25 active:scale-95"
+                        className="group flex items-center gap-3 px-6 py-3 md:px-8 md:py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-2xl font-bold text-lg transition-all shadow-lg hover:shadow-emerald-500/25 active:scale-95 w-full md:w-auto justify-center"
                     >
                         Enter Auction Arena
                         <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -130,13 +137,19 @@ export default function TeamDashboard() {
                                 />
                             </div>
                             <button
-                                onClick={handleSubmitNominations}
+                                onClick={() => setShowNominationConfirm(true)}
                                 disabled={selectedNominees.length === 0}
-                                className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all disabled:opacity-50 shadow-lg shadow-indigo-500/20"
+                                className="px-6 md:px-8 py-3 md:py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all disabled:opacity-50 shadow-lg shadow-indigo-500/20 whitespace-nowrap"
                             >
                                 Submit List
                             </button>
                         </div>
+
+                        {nominationError && (
+                            <div className="mb-4 bg-rose-500/10 border border-rose-500/50 text-rose-400 px-4 py-2 rounded-lg text-sm font-bold animate-in fade-in slide-in-from-top-2">
+                                {nominationError}
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                             {filteredPlayers.slice(0, 50).map(p => {
@@ -197,7 +210,7 @@ export default function TeamDashboard() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Squad Preview */}
-                <div className="lg:col-span-2 bg-slate-900/50 border border-slate-800 rounded-3xl p-6 backdrop-blur-sm">
+                <div className="lg:col-span-2 bg-slate-900/50 border border-slate-800 rounded-3xl p-4 md:p-6 backdrop-blur-sm">
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="text-xl font-bold text-white flex items-center gap-2">
                             <Users className="w-5 h-5 text-indigo-400" />
@@ -244,7 +257,7 @@ export default function TeamDashboard() {
                 </div>
 
                 {/* Recent Activity */}
-                <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 backdrop-blur-sm">
+                <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-4 md:p-6 backdrop-blur-sm">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-xl font-bold text-white flex items-center gap-2">
                             <Activity className="w-5 h-5 text-emerald-400" />
@@ -274,6 +287,34 @@ export default function TeamDashboard() {
                     </div>
                 </div>
             </div>
+
+            {/* Nomination Confirmation Modal */}
+            {showNominationConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-slate-900 border border-indigo-500/50 p-6 rounded-2xl w-full max-w-md shadow-2xl relative">
+                        <h3 className="text-xl font-bold text-white mb-4">Confirm Nomination</h3>
+                        <p className="text-slate-300 mb-6">
+                            You are about to submit <strong>{selectedNominees.length} players</strong> for the nomination pool.
+                            <br /><br />
+                            <span className="text-slate-400 text-sm">This list can be updated until the admin closes the phase.</span>
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowNominationConfirm(false)}
+                                className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-xl transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSubmitNominations}
+                                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 transition-colors"
+                            >
+                                Submit
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

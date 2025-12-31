@@ -1,8 +1,11 @@
 import { Users, DollarSign, Trophy, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuctionStore } from '../../store/useAuctionStore';
 
 export default function AdminDashboard() {
     const navigate = useNavigate();
+    const { players } = useAuctionStore();
+
     return (
         <div className="space-y-8">
             {/* Stats Row */}
@@ -21,7 +24,7 @@ export default function AdminDashboard() {
                 />
                 <StatCard
                     title="Players Pool"
-                    value="452"
+                    value={players.length.toString()}
                     change="Registered"
                     icon={<Trophy className="w-6 h-6 text-emerald-400" />}
                 />
