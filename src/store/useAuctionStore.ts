@@ -32,6 +32,7 @@ interface AuctionStore extends AuctionState {
     adminUnsoldPlayer: (playerId: string) => void;
     adminPauseAuction: (isPaused: boolean) => void;
     adminUpdateSettings: (settings: AuctionSettings) => void;
+    adminRollbackBid: () => void;
 
     // Player Management & RTM
     addPlayer: (player: Player) => void;
@@ -92,19 +93,7 @@ export const useAuctionStore = create<AuctionStore>()((set, _get) => {
 
     socket.on('bid:error', (errorMsg: string) => {
         console.error('Bid Failed:', errorMsg);
-        // Rollback optimistic update:
-        // Ideally we would fetch the last known good state, but simply popping the temp history
-        // and reverting currentBid is a start. For now, let's trust the next 'auction:update' to fix it
-        // which usually follows or we can force a sync.
-
-        // Let's trigger a toast or alert for the user?
-        // Actually, let's remove the optimistic history item if it exists
-        set((state) => ({
-            history: state.history.filter(h => !h.id.toString().startsWith('temp-'))
-        }));
-
-        // Re-sync with server state just in case
-        socket.emit('auction:sync'); // Assuming we have or can add this, or just wait for update
+        alert(`Bid Failed: ${errorMsg}`);
     });
 
     socket.on('error', (errMsg: string) => {
@@ -148,24 +137,9 @@ export const useAuctionStore = create<AuctionStore>()((set, _get) => {
         },
 
         placeBid: (teamId, amount) => {
-            // Optimistic Update: Update local state immediately for instant feedback
-            set((state) => ({
-                currentBid: amount,
-                currentBidder: teamId,
-                // Add temporary history item for instant visual feedback
-                history: [
-                    {
-                        id: `temp-${Date.now()}`,
-                        teamId,
-                        amount,
-                        playerId: state.currentPlayer?.id || 'unknown',
-                        timestamp: Date.now()
-                    },
-                    ...state.history
-                ]
-            }));
-
-            // Emit to server
+            // Removed optimistic update to prevent UI fluctuation
+            // State will update when server broadcasts auction:update
+            console.log('[Store] placeBid:', { teamId, amount });
             socket.emit('bid:place', { teamId, amount });
         },
 
@@ -188,6 +162,10 @@ export const useAuctionStore = create<AuctionStore>()((set, _get) => {
 
         adminUpdateSettings: (settings) => {
             socket.emit('admin:update-settings', settings);
+        },
+
+        adminRollbackBid: () => {
+            socket.emit('admin:rollback-bid');
         },
 
         addPlayer: (player) => {

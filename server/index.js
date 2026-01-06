@@ -120,7 +120,8 @@ io.on('connection', (socket) => {
             const newState = await auctionManager.placeBid(teamId, amount);
             io.emit('auction:update', newState);
         } catch (err) {
-            socket.emit('error', err.message);
+            console.error('[bid:place] Error:', err.message);
+            socket.emit('bid:error', err.message);
         }
     });
 
@@ -186,6 +187,18 @@ io.on('connection', (socket) => {
         try {
             console.log('Admin initiated auction reset');
             const newState = await auctionManager.reset();
+            io.emit('auction:update', newState);
+        } catch (err) {
+            socket.emit('error', err.message);
+        }
+    });
+
+    // Admin Rollback Last Bid
+    socket.on('admin:rollback-bid', async () => {
+        if (!socket.user || (socket.user.role !== 'admin' && socket.user.role !== 'auctioneer')) return;
+        try {
+            console.log('Admin initiated bid rollback');
+            const newState = await auctionManager.rollbackLastBid();
             io.emit('auction:update', newState);
         } catch (err) {
             socket.emit('error', err.message);

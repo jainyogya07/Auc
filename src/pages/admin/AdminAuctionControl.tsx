@@ -10,6 +10,7 @@ export default function AdminAuctionControl() {
         currentPlayer,
         currentSet,
         adminUnsoldPlayer,
+        adminRollbackBid,
         history,
         status,
         currentBid,
@@ -44,6 +45,17 @@ export default function AdminAuctionControl() {
         if (!isConnected) return;
         if (confirm("Are you sure you want to force UNSOLD this player?")) {
             if (currentPlayer) adminUnsoldPlayer(currentPlayer.id);
+        }
+    };
+
+    const handleRollbackBid = () => {
+        if (!isConnected) return;
+        if (history.length === 0) {
+            alert("No bids to rollback!");
+            return;
+        }
+        if (confirm(`Rollback the last bid of ₹${history[0]?.amount?.toFixed(2)} Cr?`)) {
+            adminRollbackBid();
         }
     };
 
@@ -125,6 +137,8 @@ export default function AdminAuctionControl() {
                                     Force UNSOLD
                                 </button>
                                 <button
+                                    onClick={handleRollbackBid}
+                                    disabled={!currentPlayer || history.length === 0}
                                     className="py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-xl border border-slate-700 disabled:opacity-50"
                                 >
                                     Rollback Last Bid

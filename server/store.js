@@ -185,6 +185,53 @@ class AuctionManager {
         return this.state;
     }
 
+    async rollbackLastBid() {
+        if (this.state.status !== 'BIDDING' && this.state.status !== 'NOMINATED') {
+            throw new Error('Cannot rollback - no active auction');
+        }
+
+        const history = this.state.history || [];
+        if (history.length === 0) {
+            throw new Error('No bids to rollback');
+        }
+
+        // Remove the last bid
+        const lastBid = history[0]; // Most recent bid
+        const remainingHistory = history.slice(1);
+
+        // Determine new current bid and bidder from remaining history
+        let newCurrentBid = 0;
+        let newCurrentBidder = null;
+
+        if (remainingHistory.length > 0) {
+            // Revert to the previous bid
+            newCurrentBid = remainingHistory[0].amount;
+            newCurrentBidder = remainingHistory[0].teamId;
+        }
+
+        // Reset timer to default duration
+        const resetTime = (this.state.settings?.defaultDuration || 60) * 1000;
+        const newTimerExpiresAt = Date.now() + resetTime;
+
+        // DB Update - remove last bid and revert state
+        await AuctionState.updateOne({}, {
+            currentBid: newCurrentBid,
+            currentBidder: newCurrentBidder,
+            status: remainingHistory.length > 0 ? 'BIDDING' : 'NOMINATED',
+            timerExpiresAt: newTimerExpiresAt,
+            $pop: { history: -1 } // Remove first element (last bid)
+        });
+
+        await this.logEvent('BID_ROLLBACK', {
+            rolledBackBid: lastBid.amount,
+            rolledBackTeam: lastBid.teamId,
+            newBid: newCurrentBid,
+            newBidder: newCurrentBidder
+        });
+
+        return await this.syncState();
+    }
+
     async setNextPlayer(playerId) {
         // Idempotency check: If already on this player, just return state
         if (this.state.currentPlayerId === playerId && ['NOMINATED', 'BIDDING'].includes(this.state.status)) {
