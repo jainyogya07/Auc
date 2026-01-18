@@ -4,7 +4,10 @@ const axios = require('axios');
 // Configuration
 const BOT_DELAY_MS = 2000; // Delay before bot places a bid (simulate thinking)
 const MAX_PURSE_PERCENT_PER_PLAYER = 15; // Don't spend more than 15% of total purse on one player unless critical
-const PYTHON_BOT_URL = process.env.PYTHON_BOT_URL || 'http://localhost:5001';
+let PYTHON_BOT_URL = process.env.PYTHON_BOT_URL || 'http://localhost:5001';
+if (PYTHON_BOT_URL && !PYTHON_BOT_URL.startsWith('http')) {
+    PYTHON_BOT_URL = `https://${PYTHON_BOT_URL}`;
+}
 
 class BotEngine {
     constructor(auctionManager) {

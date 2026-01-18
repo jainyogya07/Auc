@@ -13,7 +13,7 @@ services:
         fromService:
           type: web
           name: auction-bot
-          property: url
+          property: host
       - key: MONGO_URI
         sync: false
     autoDeploy: false
