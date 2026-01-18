@@ -9,8 +9,15 @@ export interface Team {
     purseUsed: number;
     squadCount: number;
     foreignPlayers: number;
+    isBot?: boolean;
     rtmCardsLeft: number;
     color: string; // Hex code
+    retentions?: Array<{
+        playerId: string;
+        playerName: string;
+        deduction: number;
+        set: string;
+    }>;
 }
 
 export interface Player {

@@ -1,36 +1,72 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuctionStore, getSocket } from '../../store/useAuctionStore';
 import { useAuthStore } from '../../store/useAuthStore';
-import { History, Hand, MessageSquare, Send, Brain, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { History, Hand, MessageSquare, Send, Wifi, WifiOff, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '../../lib/utils';
 // clsx removed
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { useAuctionAudio } from '../../hooks/useAuctionAudio';
-import { calculateBidStrategy } from '../../lib/auctionAi';
 
-export default function TeamAuctionArena() {
-    const { currentPlayer, currentBid, currentBidder, placeBid, history, teams, status, timerExpiresAt } = useAuctionStore();
-    const { teamId: userTeamId } = useAuthStore();
-
-    // Timer Logic
+const SynchronizedTimer = ({ expiresAt }: { expiresAt: number }) => {
+    const { timeOffset } = useAuctionStore();
     const [timeLeft, setTimeLeft] = useState<number>(0);
 
     useEffect(() => {
+        const updateTimer = () => {
+            // ServerTime = ClientTime + Offset
+            // expireAt is ServerTime
+            const now = Date.now() + timeOffset;
+            const diff = Math.max(0, Math.ceil((expiresAt - now) / 1000));
+            setTimeLeft(diff);
+        };
+
+        updateTimer();
+        const interval = setInterval(updateTimer, 100);
+        return () => clearInterval(interval);
+    }, [expiresAt, timeOffset]);
+
+    if (timeLeft <= 0) return null;
+
+    return (
+        <div className={cn(
+            "text-2xl font-black rounded-lg px-3 py-1 border-2 flex items-center justify-center animate-in zoom-in",
+            timeLeft <= 10 ? "text-rose-500 border-rose-500 bg-rose-500/10 animate-pulse" : "text-amber-500 border-amber-500 bg-amber-500/10"
+        )}>
+            {timeLeft}s
+        </div>
+    );
+};
+
+
+
+export default function TeamAuctionArena() {
+    const { currentPlayer, currentBid, currentBidder, placeBid, history, teams, status, _lastUpdated, isPaused, isConnected, timerExpiresAt, latency, passedTeams, passBid, escalateBid } = useAuctionStore();
+    const { teamId: userTeamId } = useAuthStore();
+    const hasPassed = userTeamId ? passedTeams.includes(userTeamId) : false;
+
+    // Timer Logic
+    const [timeLeft, setTimeLeft] = useState<number | null>(null);
+
+    useEffect(() => {
         if (!timerExpiresAt) {
-            setTimeLeft(0);
+            setTimeLeft(null);
             return;
         }
 
         const interval = setInterval(() => {
-            const remaining = Math.max(0, timerExpiresAt - Date.now());
-            setTimeLeft(remaining);
-        }, 50);
+            const diff = Math.max(0, Math.ceil((timerExpiresAt - Date.now()) / 1000));
+            setTimeLeft(diff);
+            if (diff <= 0) clearInterval(interval);
+        }, 200);
 
         return () => clearInterval(interval);
     }, [timerExpiresAt]);
 
-    const isLocked = timeLeft > 0 && timeLeft < 250;
+    // Debug: Log when component re-renders with new values
+    useEffect(() => {
+        console.log('[TeamAuctionArena] State updated:', { currentBid, currentBidder, status, historyLen: history?.length, _lastUpdated, timerExpiresAt });
+    }, [currentBid, currentBidder, status, history, _lastUpdated, timerExpiresAt]);
 
     // Play Sounds
     useAuctionAudio();
@@ -39,23 +75,30 @@ export default function TeamAuctionArena() {
     const myTeam = teams.find(t => t.id === userTeamId);
     const leadingTeam = teams.find(t => t.id === currentBidder);
 
-    // AI Assist State
-    const [showAiAssist, _setShowAiAssist] = useState(true);
+    // Local Bidding Cooldown State to prevent double-clicks/race conditions
+    const [isBidding, setIsBidding] = useState(false);
 
     // Chat State
     const [chatMessage, setChatMessage] = useState('');
     const [chatHistory, setChatHistory] = useState<{ id: string, sender: string, text: string, time: number }[]>(() => [
         { id: '1', sender: 'System', text: 'Welcome to the Auction Arena!', time: Date.now() }
     ]);
+    const chatEndRef = useRef<HTMLDivElement>(null);
 
-    // AI Calculations
-    const aiStrategy = myTeam ? calculateBidStrategy(myTeam, currentBid) : null;
+    // History Panel State (Desktop)
+    const [isHistoryOpen, setIsHistoryOpen] = useState(true);
 
-    // eslint-disable-next-line react-hooks/purity
-    // eslint-disable-next-line react-hooks/purity
+    // Mobile Tab State
+    const [activeTab, setActiveTab] = useState<'chat' | 'history'>('chat');
+
+    // Auto-scroll to bottom of chat
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [chatHistory, activeTab]);
+
     const handleSendMessage = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!chatMessage.trim()) return;
+        if (!chatMessage.trim() || !isConnected) return;
 
         const newMsg = {
             id: Math.random().toString(36).substr(2, 9),
@@ -66,7 +109,6 @@ export default function TeamAuctionArena() {
 
         // Emit to server
         getSocket().emit('chat:message', newMsg);
-
         setChatMessage('');
     };
 
@@ -75,7 +117,8 @@ export default function TeamAuctionArena() {
         const socket = getSocket();
 
         const handleChatBroadcast = (msg: { id: string, sender: string, text: string, time: number }) => {
-            setChatHistory((prev) => [...prev, msg]);
+            // Optimization: Limit chat history to last 50 messages to prevent memory leaks
+            setChatHistory((prev) => [...prev, msg].slice(-50));
         };
 
         socket.on('chat:broadcast', handleChatBroadcast);
@@ -85,26 +128,47 @@ export default function TeamAuctionArena() {
         };
     }, []);
 
-    // Mobile Tab State
-    const [activeTab, setActiveTab] = useState<'info' | 'chat' | 'history'>('info');
-
-    if (!myTeam) return <div className="p-8 text-center text-slate-500">Access Denied: You must be logged in as a Team.</div>;
-
     const minIncrement = currentBid < 2 ? 0.10 : currentBid < 5 ? 0.20 : 0.50; // Crores logic
     // First bid should be base price, subsequent bids add increment
     const nextBidAmount = currentBid === 0
         ? (currentPlayer?.basePrice || 2).toFixed(2)
         : (currentBid + minIncrement).toFixed(2);
+    const isTimerExpired = timeLeft !== null && timeLeft <= 0;
+
+    // Pass Confirmation State
+    const [showPassConfirm, setShowPassConfirm] = useState(false);
+
+    // Active Bidders Calculation (Teams that haven't passed)
+    const activeBiddersCount = teams.filter(t => !passedTeams.includes(t.id)).length;
+    const totalTeams = teams.length;
+
+    if (!myTeam) return <div className="p-8 text-center text-slate-500">Access Denied: You must be logged in as a Team.</div>;
+
     const canAfford = myTeam.purse >= Number(nextBidAmount);
     const isLeading = currentBidder === myTeam.id;
-    const canBid = (status === 'NOMINATED' || status === 'BIDDING') && canAfford && !isLeading && !!currentPlayer;
+    const canBid = (status === 'NOMINATED' || status === 'BIDDING') && canAfford && !isLeading && !!currentPlayer && !isPaused && !isBidding && !isTimerExpired;
 
-    const handleBid = () => {
+    const handleBid = async () => {
+        console.log('[TeamAuctionArena] handleBid clicked');
+        if (isBidding) {
+            console.warn('[TeamAuctionArena] Bid blocked: isBidding is true');
+            return;
+        }
+        setIsBidding(true);
+
         // Get the FRESH state from store at click time to avoid race conditions
         const freshState = useAuctionStore.getState();
         const freshCurrentBid = freshState.currentBid;
         const freshCurrentBidder = freshState.currentBidder;
         const freshCurrentPlayer = freshState.currentPlayer;
+
+        console.log('[TeamAuctionArena] Fresh State:', {
+            freshCurrentBid,
+            freshCurrentBidder,
+            myTeamId: myTeam.id,
+            purse: myTeam.purse,
+            status: freshState.status
+        });
 
         // Recalculate with fresh values
         const freshMinIncrement = freshCurrentBid < 2 ? 0.10 : freshCurrentBid < 5 ? 0.20 : 0.50;
@@ -119,9 +183,18 @@ export default function TeamAuctionArena() {
             && !!freshCurrentPlayer;
 
         if (canStillBid) {
+            console.log('[TeamAuctionArena] Placing bid...');
             placeBid(myTeam.id, Number(freshNextBid.toFixed(2)));
+            // Cooldown to prevent spamming
+            setTimeout(() => setIsBidding(false), 800);
         } else {
-            console.log('Cannot bid - state changed. currentBid:', freshCurrentBid, 'nextBid:', freshNextBid);
+            console.warn('[TeamAuctionArena] Cannot bid - state validation failed inside handleBid', {
+                statusCheck: (freshState.status === 'NOMINATED' || freshState.status === 'BIDDING'),
+                purseCheck: myTeam.purse >= freshNextBid,
+                bidderCheck: freshCurrentBidder !== myTeam.id,
+                playerCheck: !!freshCurrentPlayer
+            });
+            setIsBidding(false);
         }
     };
 
@@ -186,15 +259,55 @@ export default function TeamAuctionArena() {
                     <span className="px-3 py-1 bg-slate-800/50 rounded-lg">{currentPlayer.country}</span>
                 </div>
 
+                {/* Active Bidders Indicator */}
+                <div className="flex items-center justify-center gap-2 mb-4">
+                    <div className="bg-slate-900/80 border border-slate-700 rounded-full px-4 py-1.5 flex items-center gap-2 shadow-lg">
+                        <span className="relative flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                        </span>
+                        <span className="text-sm font-bold text-slate-300">
+                            <span className="text-white">{activeBiddersCount}</span> / <span className="text-slate-500">{totalTeams}</span> Active Bidders
+                        </span>
+                    </div>
+                </div>
+
                 <div className={cn(
-                    "py-6 px-4 md:py-8 md:px-12 rounded-2xl border-2 transition-all duration-300 transform",
+                    "py-6 px-4 md:py-8 md:px-12 rounded-2xl border-2 transition-all duration-300 transform relative overflow-hidden",
                     isLeading ? "bg-emerald-500/10 border-emerald-500/50 scale-105" : "bg-slate-800/50 border-slate-700"
                 )}>
+                    {/* Visual Countdown Overlay if Timer Active */}
+                    {timeLeft !== null && timeLeft > 0 && (
+                        <div className="absolute inset-x-0 top-0 h-1 bg-red-500/20">
+                            <motion.div
+                                className="h-full bg-red-500"
+                                initial={{ width: '100%' }}
+                                animate={{ width: '0%' }}
+                                transition={{ duration: 60, ease: "linear" }}
+                            />
+                        </div>
+                    )}
+
                     <div className="text-xs md:text-sm font-bold tracking-widest uppercase mb-1 text-slate-400">Current Bid</div>
                     <div className="text-3xl md:text-6xl font-black text-white tabular-nums tracking-tighter">
                         ₹ {currentBid.toFixed(2)} <span className="text-lg md:text-2xl text-slate-500 font-bold">Cr</span>
                     </div>
-                    {currentBidder && (
+                    {/* Timer Display - Only when active */}
+                    {timeLeft !== null && (
+                        <div className="mt-4 flex justify-center">
+                            {timerExpiresAt ? (
+                                <SynchronizedTimer expiresAt={timerExpiresAt} />
+                            ) : (
+                                <div className={cn("text-3xl font-black w-14 h-14 md:w-20 md:h-20 rounded-full flex items-center justify-center mx-auto border-4",
+                                    timeLeft <= 10 ? "text-rose-500 border-rose-500 animate-pulse bg-rose-500/10" : "text-amber-500 border-amber-500 bg-amber-500/10"
+                                )}>
+                                    {timeLeft}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {currentBidder && timeLeft === null && (
                         <div className="mt-2 text-sm md:text-lg font-medium text-emerald-400 flex items-center justify-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                             Winning: {leadingTeam?.name}
@@ -209,176 +322,261 @@ export default function TeamAuctionArena() {
         <div className="bg-slate-900 border-t md:border border-slate-800 p-4 md:p-6 rounded-t-2xl md:rounded-2xl shadow-[0_-5px_20px_rgba(0,0,0,0.5)] md:shadow-none">
             <div className="flex flex-row items-center justify-between gap-4 md:gap-6">
                 <div className="flex flex-col md:block text-left shrink-0">
-                    <div className="text-xs md:text-sm text-slate-400">Your Purse</div>
+                    <div className="text-xs md:text-sm text-slate-400 flex items-center gap-2">
+                        Your Purse
+                        {!isConnected && <span className="text-rose-500 text-xs">(Offline)</span>}
+                    </div>
                     <div className={cn("text-lg md:text-2xl font-bold", canAfford ? "text-white" : "text-rose-500")}>
                         ₹ {myTeam.purse.toFixed(2)} Cr
                     </div>
                 </div>
 
-                {timeLeft > 0 && (
-                    <div className={cn(
-                        "flex flex-col items-center justify-center w-16 h-10 md:w-24 md:h-16 rounded-xl border-2 shrink-0 md:hidden lg:flex", // Hidden on mobile unless space or adjust
-                        isLocked ? "bg-rose-950/50 border-rose-500 text-rose-500" :
-                            timeLeft < 5000 ? "bg-amber-950/50 border-amber-500 text-amber-500" :
-                                "bg-slate-800 border-slate-700 text-slate-300"
-                    )}>
-                        <div className="text-lg md:text-2xl font-mono font-bold">{(timeLeft / 1000).toFixed(0)}s</div>
-                    </div>
-                )}
-
-
                 <motion.button
                     onClick={handleBid}
                     whileTap={{ scale: 0.95 }}
-                    disabled={!canBid || isLocked}
+                    disabled={!canBid || !isConnected}
                     className={cn(
-                        "flex-1 h-12 md:h-20 text-lg md:text-2xl font-black uppercase rounded-xl flex items-center justify-center gap-2 md:gap-3 transition-all shadow-xl relative overflow-hidden",
-                        isLeading
-                            ? "bg-slate-800 text-emerald-500 cursor-not-allowed border-2 border-emerald-500/20"
-                            : !canAfford
-                                ? "bg-rose-900/20 text-rose-500 cursor-not-allowed border-2 border-rose-900/50"
-                                : isLocked
-                                    ? "bg-slate-800 text-rose-500 cursor-not-allowed border-2 border-rose-900"
-                                    : "bg-emerald-500 hover:bg-emerald-400 text-white hover:shadow-emerald-500/20 active:shadow-inner"
+                        "flex-1 h-10 md:h-12 text-base md:text-lg font-bold uppercase rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg relative overflow-hidden",
+                        isPaused
+                            ? "bg-amber-900/20 text-amber-500 cursor-not-allowed border border-amber-500/30"
+                            : isLeading
+                                ? "bg-slate-800 text-emerald-500 cursor-not-allowed border border-emerald-500/20"
+                                : !canAfford
+                                    ? "bg-rose-900/20 text-rose-500 cursor-not-allowed border border-rose-900/50"
+                                    : !isConnected
+                                        ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
+                                        : "bg-emerald-500 hover:bg-emerald-400 text-white hover:shadow-emerald-500/20 active:shadow-inner"
                     )}
                 >
-                    {isLeading ? (
+                    {isPaused ? (
+                        <>PAUSED</>
+                    ) : !isConnected ? (
+                        <>OFFLINE</>
+                    ) : isLeading ? (
                         <>
                             <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse md:block hidden" />
                             Leading
                         </>
-                    ) : isLocked ? (
-                        <>LOCKED</>
                     ) : (
                         <>
-                            <Hand className="w-5 h-5 md:w-8 md:h-8" />
+                            <Hand className="w-4 h-4" />
                             <span className="md:inline hidden">Bid </span> ₹ {nextBidAmount}
                         </>
                     )}
                 </motion.button>
-            </div>
-        </div>
-    );
 
-    const AiInsight = () => (
-        myTeam && showAiAssist && aiStrategy ? (
-            <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={cn(
-                    "bg-slate-900 border p-5 rounded-2xl flex items-start gap-4 shadow-lg mb-4 md:mb-0",
-                    aiStrategy.riskLevel === 'SAFE' ? "border-slate-800" :
-                        aiStrategy.riskLevel === 'MODERATE' ? "border-amber-500/20 bg-amber-950/10" :
-                            "border-rose-500/20 bg-rose-950/10"
+                {/* Pass / Escalate Buttons */}
+                {/* Pass / Escalate Buttons */}
+                {!hasPassed ? (
+                    <div className="relative">
+                        {/* Pass Confirmation Popup */}
+                        {showPassConfirm ? (
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                                className="absolute bottom-full mb-3 left-0 right-0 bg-slate-800 border-2 border-rose-500/50 p-4 rounded-xl shadow-2xl z-50 w-64 -translate-x-1/2 left-1/2 transform text-center"
+                                style={{ transform: 'translateX(-50%)' }} // React style needed to center absolute
+                            >
+                                <p className="text-white text-sm font-bold mb-3">Confirm Pass for this Player?</p>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => { passBid(); setShowPassConfirm(false); }}
+                                        className="flex-1 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition-colors"
+                                    >
+                                        YES, PASS
+                                    </button>
+                                    <button
+                                        onClick={() => setShowPassConfirm(false)}
+                                        className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-bold transition-colors"
+                                    >
+                                        CANCEL
+                                    </button>
+                                </div>
+                                {/* Arrow */}
+                                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-slate-800 border-b-2 border-r-2 border-rose-500/50 transform rotate-45"></div>
+                            </motion.div>
+                        ) : null}
+
+                        <motion.button
+                            onClick={() => setShowPassConfirm(true)}
+                            whileTap={{ scale: 0.95 }}
+                            disabled={!isConnected || isPaused || isLeading}
+                            className="h-10 md:h-12 w-24 bg-rose-900/20 hover:bg-rose-900/40 text-rose-500 hover:text-rose-400 font-bold rounded-xl border border-rose-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                            PASS
+                        </motion.button>
+                    </div>
+                ) : (
+                    <motion.button
+                        onClick={escalateBid}
+                        whileTap={{ scale: 0.95 }}
+                        disabled={!isConnected || isPaused}
+                        className="h-10 md:h-12 w-32 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 font-bold rounded-xl border border-amber-500/50 flex items-center justify-center gap-1 animate-pulse"
+                    >
+                        ESCALATE
+                    </motion.button>
                 )}
-            >
-                <div className={cn(
-                    "p-3 rounded-lg shrink-0",
-                    aiStrategy.riskLevel === 'SAFE' ? "bg-slate-800 text-emerald-400" :
-                        aiStrategy.riskLevel === 'MODERATE' ? "bg-amber-900/20 text-amber-400" :
-                            "bg-rose-900/20 text-rose-400"
-                )}>
-                    <Brain className="w-6 h-6" />
+            </div>
+            {hasPassed && (
+                <div className="mt-2 text-center text-xs text-rose-500 font-medium bg-rose-500/10 py-1 rounded-lg border border-rose-500/20">
+                    You have passed. Escalate to bid again.
                 </div>
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                        <h4 className="font-bold text-slate-200 flex items-center gap-2 text-sm md:text-base">
-                            AI Strategy
-                            {aiStrategy.riskLevel === 'SAFE' && <ShieldCheck className="w-4 h-4 text-emerald-500" />}
-                            {aiStrategy.riskLevel !== 'SAFE' && <AlertTriangle className="w-4 h-4 text-amber-500" />}
-                        </h4>
-                        <span className={cn(
-                            "text-[10px] md:text-xs font-bold px-2 py-1 rounded",
-                            aiStrategy.riskLevel === 'SAFE' ? "bg-emerald-500/10 text-emerald-400" :
-                                aiStrategy.riskLevel === 'MODERATE' ? "bg-amber-500/10 text-amber-400" :
-                                    "bg-rose-500/10 text-rose-400"
-                        )}>
-                            {aiStrategy.riskLevel}
-                        </span>
-                    </div>
-                    <p className="text-slate-400 text-xs md:text-sm mb-3 line-clamp-2 md:line-clamp-none">
-                        {aiStrategy.message}
-                    </p>
-                    <div className="grid grid-cols-2 gap-2 md:gap-4 text-xs md:text-sm">
-                        <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800/50">
-                            <div className="text-slate-500 text-[10px] mb-1">Safe Max</div>
-                            <div className="font-mono font-bold text-slate-200">₹ {aiStrategy.safeMaxBid.toFixed(2)}</div>
-                        </div>
-                        <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800/50">
-                            <div className="text-slate-500 text-[10px] mb-1">Rec. Limit</div>
-                            <div className="font-mono font-bold text-emerald-400">₹ {aiStrategy.recommendedLimit.toFixed(2)}</div>
-                        </div>
-                    </div>
-                </div>
-            </motion.div>
-        ) : <div className="p-4 text-center text-slate-500 text-sm italic">AI Insights unavailable</div>
+            )}
+        </div>
     );
 
     const ChatPanel = () => (
         <div className="flex-1 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col overflow-hidden h-full min-h-[300px]">
-            <div className="p-4 border-b border-slate-800 font-medium text-slate-300 flex items-center gap-2 bg-slate-900">
-                <MessageSquare className="w-4 h-4 text-emerald-500" />
-                Team Chat
+            <div className="p-4 border-b border-slate-800 font-medium text-slate-300 flex items-center justify-between bg-slate-900">
+                <div className="flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-emerald-500" />
+                    Team Chat
+                </div>
+                {/* Connection Status Indicator */}
+                <div className="flex items-center gap-1.5">
+                    {isConnected ? (
+                        <div className="flex items-center gap-1 text-[10px] text-emerald-500 font-medium bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                            <Wifi className="w-3 h-3" />
+                            <span>Live</span>
+                            {latency !== null && (
+                                <span className={cn(
+                                    "border-l border-emerald-500/20 pl-1 ml-0.5",
+                                    latency > 300 ? "text-rose-500" : latency > 150 ? "text-amber-500" : "text-emerald-500"
+                                )}>
+                                    {latency}ms
+                                </span>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-1 text-[10px] text-rose-500 font-medium bg-rose-500/10 px-2 py-0.5 rounded-full animate-pulse">
+                            <WifiOff className="w-3 h-3" />
+                            <span>Reconnecting...</span>
+                        </div>
+                    )}
+                </div>
             </div>
+
             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-slate-950/30">
-                {chatHistory.map((msg) => (
-                    <div key={msg.id} className="text-sm">
-                        <span className={cn("font-bold mr-2", msg.sender === 'System' ? "text-emerald-500" : "text-slate-300")}>{msg.sender}:</span>
-                        <span className="text-slate-400">{msg.text}</span>
-                    </div>
-                ))}
+                {chatHistory.map((msg) => {
+                    const isMe = msg.sender === (myTeam?.code || 'Me');
+                    const isSystem = msg.sender === 'System';
+
+                    if (isSystem) {
+                        return (
+                            <div key={msg.id} className="flex justify-center my-2">
+                                <span className="bg-slate-800/80 text-emerald-400 text-[10px] px-3 py-1 rounded-full font-medium border border-slate-700/50 shadow-sm">
+                                    {msg.text}
+                                </span>
+                            </div>
+                        );
+                    }
+
+                    return (
+                        <div key={msg.id} className={cn("flex flex-col max-w-[85%]", isMe ? "ml-auto items-end" : "mr-auto items-start")}>
+                            <div className={cn(
+                                "px-3 py-2 rounded-2xl text-sm shadow-sm relative",
+                                isMe
+                                    ? "bg-emerald-600 text-white rounded-tr-sm"
+                                    : "bg-slate-800 text-slate-200 rounded-tl-sm border border-slate-700"
+                            )}>
+                                {!isMe && <div className="text-[10px] font-bold text-emerald-400 mb-0.5">{msg.sender}</div>}
+                                {msg.text}
+                                <div className={cn("text-[9px] mt-1 text-right opacity-70", isMe ? "text-emerald-100" : "text-slate-500")}>
+                                    {new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+                <div ref={chatEndRef} />
             </div>
-            <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-800 flex gap-2 bg-slate-900">
+
+            <form onSubmit={handleSendMessage} className="p-2 border-t border-slate-800 flex gap-2 bg-slate-900 relative">
+                {!isConnected && (
+                    <div className="absolute inset-0 bg-slate-900/80 index-10 flex items-center justify-center text-xs text-rose-500 font-bold backdrop-blur-[1px] z-10">
+                        Connection Lost - Chat Disabled
+                    </div>
+                )}
                 <input
-                    className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
-                    placeholder="Type..."
+                    id="team-chat-input"
+                    name="chatMessage"
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 placeholder:text-slate-600"
+                    placeholder={isConnected ? "Type a message..." : "Reconnecting..."}
                     value={chatMessage}
                     onChange={e => setChatMessage(e.target.value)}
+                    disabled={!isConnected}
+                    autoComplete="off"
                 />
-                <button type="submit" className="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 shrink-0">
-                    <Send className="w-4 h-4" />
+                <button
+                    type="submit"
+                    disabled={!isConnected || !chatMessage.trim()}
+                    className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                    <Send className="w-3.5 h-3.5" />
                 </button>
             </form>
         </div>
     );
 
     const HistoryPanel = () => (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl flex-1 flex flex-col overflow-hidden h-full min-h-[300px]">
-            <div className="p-4 border-b border-slate-800 font-medium text-slate-300 flex items-center gap-2 shrink-0">
-                <History className="w-4 h-4 text-emerald-500" />
-                Bid History
+        <div className={cn(
+            "bg-slate-900 border border-slate-800 rounded-2xl flex flex-col overflow-hidden transition-all duration-300",
+            // If closed, shrink height (min-h only to cover header)
+            isHistoryOpen ? "flex-1 min-h-[300px]" : "h-auto shrink-0"
+        )}>
+            <div
+                onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+                className="p-4 border-b border-slate-800 font-medium text-slate-300 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 transition-colors shrink-0"
+            >
+                <div className="flex items-center gap-2">
+                    <History className="w-4 h-4 text-emerald-500" />
+                    Bid History
+                </div>
+                {isHistoryOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar flex flex-col-reverse">
-                <AnimatePresence initial={false}>
-                    {history.map((bid) => {
-                        const team = teams.find(t => t.id === bid.teamId);
-                        return (
-                            <motion.div
-                                key={bid.id}
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                className={cn(
-                                    "flex items-center justify-between p-3 rounded-lg border",
-                                    bid.teamId === myTeam.id
-                                        ? "bg-emerald-950/30 border-emerald-500/20"
-                                        : "bg-slate-800/30 border-slate-800"
-                                )}
-                            >
-                                <div>
-                                    <div className="text-sm font-bold text-slate-200">{team?.code}</div>
-                                    <div className="text-xs text-slate-500">{new Date(bid.timestamp).toLocaleTimeString()}</div>
-                                </div>
-                                <div className="text-lg font-mono font-bold text-emerald-400">
-                                    ₹ {bid.amount.toFixed(2)}
-                                </div>
-                            </motion.div>
-                        );
-                    })}
-                </AnimatePresence>
-                {history.length === 0 && (
-                    <div className="text-center text-slate-600 py-10 italic">No bids yet</div>
+
+            <AnimatePresence>
+                {isHistoryOpen && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar max-h-[250px] min-h-0"
+                    >
+                        <AnimatePresence initial={false}>
+                            {history.map((bid) => {
+                                const team = teams.find(t => t.id === bid.teamId);
+                                return (
+                                    <motion.div
+                                        key={bid.id}
+                                        initial={{ opacity: 0, x: -20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        className={cn(
+                                            "flex items-center justify-between p-3 rounded-lg border",
+                                            bid.teamId === myTeam.id
+                                                ? "bg-emerald-950/30 border-emerald-500/20"
+                                                : "bg-slate-800/30 border-slate-800"
+                                        )}
+                                    >
+                                        <div>
+                                            <div className="text-sm font-bold text-slate-200">{team?.code}</div>
+                                            <div className="text-xs text-slate-500">{new Date(bid.timestamp).toLocaleTimeString()}</div>
+                                        </div>
+                                        <div className="text-lg font-mono font-bold text-emerald-400">
+                                            ₹ {bid.amount.toFixed(2)}
+                                        </div>
+                                    </motion.div>
+                                );
+                            })}
+                        </AnimatePresence>
+                        {history.length === 0 && (
+                            <div className="text-center text-slate-600 py-10 italic">No bids yet</div>
+                        )}
+                    </motion.div>
                 )}
-            </div>
+            </AnimatePresence>
         </div>
     );
 
@@ -390,12 +588,12 @@ export default function TeamAuctionArena() {
                     <PlayerCard />
 
                     <div className="flex gap-2 p-1 bg-slate-900 rounded-xl border border-slate-800 shrink-0">
-                        {(['info', 'chat', 'history'] as const).map(tab => (
+                        {(['chat', 'history'] as const).map(tab => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
                                 className={cn(
-                                    "flex-1 py-2 text-sm font-bold rounded-lg transition-all capitalize",
+                                    "flex-1 py-1.5 text-xs font-bold rounded-lg transition-all capitalize",
                                     activeTab === tab ? "bg-slate-800 text-white shadow-sm" : "text-slate-500 hover:text-slate-300"
                                 )}
                             >
@@ -405,7 +603,6 @@ export default function TeamAuctionArena() {
                     </div>
 
                     <div className="flex-1 min-h-0">
-                        {activeTab === 'info' && <AiInsight />}
                         {activeTab === 'chat' && <ChatPanel />}
                         {activeTab === 'history' && <HistoryPanel />}
                     </div>
@@ -424,7 +621,6 @@ export default function TeamAuctionArena() {
                         <PlayerCard className="flex-1" />
                     </div>
                     <BiddingPanel />
-                    <AiInsight />
                 </div>
 
                 <div className="space-y-6 flex flex-col h-full min-h-0">

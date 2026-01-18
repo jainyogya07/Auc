@@ -2,11 +2,13 @@ import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/useAuthStore';
 import { useAuctionStore } from './store/useAuctionStore';
+import { ToastContainer } from './components/ui/ToastContainer';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminTeams from './pages/admin/AdminTeams';
 import AdminPlayers from './pages/admin/AdminPlayers';
 import AdminAuctionControl from './pages/admin/AdminAuctionControl';
+import AdminRetentions from './pages/admin/AdminRetentions';
 import AdminSettings from './pages/admin/AdminSettings';
 import TeamDashboard from './pages/team/TeamDashboard';
 import TeamAuctionArena from './pages/team/TeamAuctionArena';
@@ -59,6 +61,7 @@ function App() {
           <Route path="teams" element={<AdminTeams />} />
           <Route path="players" element={<AdminPlayers />} />
           <Route path="control" element={<AdminAuctionControl />} />
+          <Route path="retentions" element={<AdminRetentions />} />
           <Route path="sets" element={<AdminSetManagement />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
@@ -79,6 +82,7 @@ function App() {
         </Route>
 
       </Routes>
+      <ToastContainer />
     </BrowserRouter>
   );
 }

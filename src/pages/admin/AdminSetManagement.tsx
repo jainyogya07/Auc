@@ -2,72 +2,72 @@ import { useState, useEffect } from 'react';
 import { useAuctionStore } from '../../store/useAuctionStore';
 import { Save, ArrowUp, ArrowDown, ListOrdered, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 
+const SET_NAMES: Record<number, string> = {
+    1: 'M1 - Marquee Set 1',
+    2: 'M2 - Marquee Set 2',
+    3: 'BA1 - Batters 1',
+    4: 'AL1 - All Rounders 1',
+    5: 'WK1 - Wicket Keepers 1',
+    6: 'FA1 - Fast Bowlers 1',
+    7: 'SP1 - Spinners 1',
+    8: 'UBA1 - Uncapped Batters',
+    9: 'UAL1 - Uncapped All Rounders',
+    10: 'UWK1 - Uncapped Wicket Keepers',
+    11: 'UFA1 - Uncapped Fast Bowlers 1',
+    12: 'USP1 - Uncapped Spinners 1',
+    13: 'BA2 - Batters 2',
+    14: 'AL2 - All Rounders 2',
+    15: 'WK2 - Wicket Keepers 2',
+    17: 'SP2 - Spinners 2',
+    18: 'UBA2 - Uncapped Batters 2',
+    19: 'UAL2 - Uncapped All Rounders 2',
+    20: 'UWK2 - Uncapped Wicket Keepers 2',
+    21: 'UFA2 - Uncapped Fast Bowlers 2',
+    22: 'USP2 - Uncapped Spinners 2',
+    23: 'BA3 - Batters 3',
+    24: 'AL3 - All Rounders 3',
+    25: 'WK3 - Wicket Keepers 3',
+    26: 'FA3 - Fast Bowlers 3',
+    27: 'SP3 - Spinners 3',
+    28: 'UBA3 - Uncapped Batters 3',
+    29: 'UAL3 - Uncapped All Rounders 3',
+    30: 'UWK3 - Uncapped Wicket Keepers 3',
+    31: 'UFA3 - Uncapped Fast Bowlers 3',
+    32: 'USP3 - Uncapped Spinners 3',
+    33: 'BA4 - Batters 4',
+    34: 'AL4 - All Rounders 4',
+    35: 'WK4 - Wicket Keepers 4',
+    36: 'FA4 - Fast Bowlers 4',
+    37: 'UBA4 - Uncapped Batters 4',
+    38: 'UAL4 - Uncapped All Rounders 4',
+    39: 'UWK4 - Uncapped Wicket Keepers 4',
+    40: 'UFA4 - Uncapped Fast Bowlers 4',
+    41: 'USP4 - Uncapped Spinners 4',
+    42: 'BA5 - Batters 5',
+    43: 'AL5 - All Rounders 5',
+    44: 'FA5 - Fast Bowlers 5',
+    45: 'UBA5 - Uncapped Batters 5',
+    46: 'UAL5 - Uncapped All Rounders 5',
+    47: 'UWK5 - Uncapped Wicket Keepers 5',
+    48: 'FA5 - Fast Bowlers 5', 49: 'UBA5 - Uncapped Batters 5', 50: 'AL6 - All Rounders 6', 51: 'FA6 - Fast Bowlers 6',
+    52: 'UBA6 - Uncapped Batters 6', 53: 'UAL6 - Uncapped All-Rounders 6', 54: 'UWK6 - Uncapped Wicket Keepers 6', 55: 'UFA6 - Uncapped Fast Bowlers 6',
+    56: 'AL7 - All Rounders 7', 57: 'FA7 - Fast Bowlers 7',
+    58: 'UBA7 - Uncapped Batters 7', 59: 'UAL7 - Uncapped All-Rounders 7', 60: 'UFA7 - Uncapped Fast Bowlers 7',
+    61: 'AL8 - All Rounders 8', 62: 'FA8 - Fast Bowlers 8',
+    63: 'UBA8 - Uncapped Batters 8', 64: 'UAL8 - Uncapped All-Rounders 8', 65: 'UFA8 - Uncapped Fast Bowlers 8',
+    66: 'AL9 - All Rounders 9', 67: 'FA9 - Fast Bowlers 9',
+    68: 'UBA9 - Uncapped Batters 9', 69: 'UAL9 - Uncapped All-Rounders 9', 70: 'UFA9 - Uncapped Fast Bowlers 9',
+    72: 'AL10/FA10 - Mixed Set 10', 73: 'UAL10 - Uncapped All-Rounders 10', 74: 'UFA10 - Uncapped Fast Bowlers 10',
+    75: 'UAL11 - Uncapped All-Rounders 11', 76: 'UAL12 - Uncapped All-Rounders 12',
+    77: 'UAL13 - Uncapped All-Rounders 13', 78: 'UAL14 - Uncapped All-Rounders 14', 79: 'UAL15 - Uncapped All-Rounders 15'
+};
+
 export default function AdminSetManagement() {
     const { players, setOrder, updateSetOrder, deletePlayer } = useAuctionStore();
     const [localOrder, setLocalOrder] = useState<number[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const [expandedSet, setExpandedSet] = useState<number | null>(null);
-
-    const SET_NAMES: Record<number, string> = {
-        1: 'M1 - Marquee Set 1',
-        2: 'M2 - Marquee Set 2',
-        3: 'BA1 - Batters 1',
-        4: 'AL1 - All Rounders 1',
-        5: 'WK1 - Wicket Keepers 1',
-        6: 'FA1 - Fast Bowlers 1',
-        7: 'SP1 - Spinners 1',
-        8: 'UBA1 - Uncapped Batters',
-        9: 'UAL1 - Uncapped All Rounders',
-        10: 'UWK1 - Uncapped Wicket Keepers',
-        11: 'UFA1 - Uncapped Fast Bowlers 1',
-        12: 'USP1 - Uncapped Spinners 1',
-        13: 'BA2 - Batters 2',
-        14: 'AL2 - All Rounders 2',
-        15: 'WK2 - Wicket Keepers 2',
-        17: 'SP2 - Spinners 2',
-        18: 'UBA2 - Uncapped Batters 2',
-        19: 'UAL2 - Uncapped All Rounders 2',
-        20: 'UWK2 - Uncapped Wicket Keepers 2',
-        21: 'UFA2 - Uncapped Fast Bowlers 2',
-        22: 'USP2 - Uncapped Spinners 2',
-        23: 'BA3 - Batters 3',
-        24: 'AL3 - All Rounders 3',
-        25: 'WK3 - Wicket Keepers 3',
-        26: 'FA3 - Fast Bowlers 3',
-        27: 'SP3 - Spinners 3',
-        28: 'UBA3 - Uncapped Batters 3',
-        29: 'UAL3 - Uncapped All Rounders 3',
-        30: 'UWK3 - Uncapped Wicket Keepers 3',
-        31: 'UFA3 - Uncapped Fast Bowlers 3',
-        32: 'USP3 - Uncapped Spinners 3',
-        33: 'BA4 - Batters 4',
-        34: 'AL4 - All Rounders 4',
-        35: 'WK4 - Wicket Keepers 4',
-        36: 'FA4 - Fast Bowlers 4',
-        37: 'UBA4 - Uncapped Batters 4',
-        38: 'UAL4 - Uncapped All Rounders 4',
-        39: 'UWK4 - Uncapped Wicket Keepers 4',
-        40: 'UFA4 - Uncapped Fast Bowlers 4',
-        41: 'USP4 - Uncapped Spinners 4',
-        42: 'BA5 - Batters 5',
-        43: 'AL5 - All Rounders 5',
-        44: 'FA5 - Fast Bowlers 5',
-        45: 'UBA5 - Uncapped Batters 5',
-        46: 'UAL5 - Uncapped All Rounders 5',
-        47: 'UWK5 - Uncapped Wicket Keepers 5',
-        48: 'FA5 - Fast Bowlers 5', 49: 'UBA5 - Uncapped Batters 5', 50: 'AL6 - All Rounders 6', 51: 'FA6 - Fast Bowlers 6',
-        52: 'UBA6 - Uncapped Batters 6', 53: 'UAL6 - Uncapped All-Rounders 6', 54: 'UWK6 - Uncapped Wicket Keepers 6', 55: 'UFA6 - Uncapped Fast Bowlers 6',
-        56: 'AL7 - All Rounders 7', 57: 'FA7 - Fast Bowlers 7',
-        58: 'UBA7 - Uncapped Batters 7', 59: 'UAL7 - Uncapped All-Rounders 7', 60: 'UFA7 - Uncapped Fast Bowlers 7',
-        61: 'AL8 - All Rounders 8', 62: 'FA8 - Fast Bowlers 8',
-        63: 'UBA8 - Uncapped Batters 8', 64: 'UAL8 - Uncapped All-Rounders 8', 65: 'UFA8 - Uncapped Fast Bowlers 8',
-        66: 'AL9 - All Rounders 9', 67: 'FA9 - Fast Bowlers 9',
-        68: 'UBA9 - Uncapped Batters 9', 69: 'UAL9 - Uncapped All-Rounders 9', 70: 'UFA9 - Uncapped Fast Bowlers 9',
-        72: 'AL10/FA10 - Mixed Set 10', 73: 'UAL10 - Uncapped All-Rounders 10', 74: 'UFA10 - Uncapped Fast Bowlers 10',
-        75: 'UAL11 - Uncapped All-Rounders 11', 76: 'UAL12 - Uncapped All-Rounders 12',
-        77: 'UAL13 - Uncapped All-Rounders 13', 78: 'UAL14 - Uncapped All-Rounders 14', 79: 'UAL15 - Uncapped All-Rounders 15'
-    };
 
     const ALL_SETS = Array.from({ length: 79 }, (_, i) => i + 1).filter(s => s !== 71 && s !== 16); // Sets 1-79, skip 71 and 16
 
@@ -129,7 +129,7 @@ export default function AdminSetManagement() {
             <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
                 <div className="p-4 bg-slate-950/50 border-b border-slate-800 flex items-center gap-3 text-slate-400">
                     <ListOrdered className="w-5 h-5" />
-                    <span className="font-mono text-sm uppercase tracking-wider">Set Order (Drag Logic Pending)</span>
+                    <span className="font-mono text-sm uppercase tracking-wider">Set Order</span>
                 </div>
 
                 <div className="divide-y divide-slate-800/50">

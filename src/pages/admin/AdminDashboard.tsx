@@ -4,7 +4,13 @@ import { useAuctionStore } from '../../store/useAuctionStore';
 
 export default function AdminDashboard() {
     const navigate = useNavigate();
-    const { players } = useAuctionStore();
+    const { players, teams, status, isPaused } = useAuctionStore();
+
+    // Calculate real stats
+    const totalTeams = teams.length;
+    const totalBudget = teams.reduce((sum, t) => sum + t.purse + (t.purseUsed || 0), 0);
+    const soldPlayers = players.filter(p => p.status === 'S').length;
+    const auctionStatusText = isPaused ? 'Paused' : status === 'IDLE' ? 'Not Started' : 'Live';
 
     return (
         <div className="space-y-8">
@@ -12,26 +18,26 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard
                     title="Total Teams"
-                    value="10"
-                    change="+2"
+                    value={totalTeams.toString()}
+                    change="Registered"
                     icon={<Users className="w-6 h-6 text-emerald-400" />}
                 />
                 <StatCard
                     title="Total Budget"
-                    value="₹ 100 Cr"
-                    change="Initial"
+                    value={`₹ ${totalBudget.toFixed(0)} Cr`}
+                    change="Combined"
                     icon={<DollarSign className="w-6 h-6 text-emerald-400" />}
                 />
                 <StatCard
                     title="Players Pool"
-                    value={players.length.toString()}
-                    change="Registered"
+                    value={`${soldPlayers}/${players.length}`}
+                    change="Sold/Total"
                     icon={<Trophy className="w-6 h-6 text-emerald-400" />}
                 />
                 <StatCard
                     title="Auction Status"
-                    value="Pending"
-                    change="--:--"
+                    value={auctionStatusText}
+                    change={status}
                     icon={<TrendingUp className="w-6 h-6 text-emerald-400" />}
                 />
             </div>

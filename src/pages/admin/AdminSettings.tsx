@@ -6,17 +6,21 @@ import { Clock, ListOrdered, ArrowRight } from 'lucide-react';
 export default function AdminSettings() {
     const { settings, adminUpdateSettings } = useAuctionStore();
     const [localSettings, setLocalSettings] = useState(settings);
+    const [isSaved, setIsSaved] = useState(false);
 
+    // Update local state when server state changes (only if not edited locally yet, strictly speaking, 
+    // but here we just want to ensure we have data loaded)
     useEffect(() => {
-        if (settings && JSON.stringify(settings) !== JSON.stringify(localSettings)) {
+        if (settings && !localSettings) {
             setLocalSettings(settings);
         }
-    }, [settings]);
+    }, [settings, localSettings]);
 
     const handleSave = () => {
         if (localSettings) {
             adminUpdateSettings(localSettings);
-            alert("Timer Settings Updated!");
+            setIsSaved(true);
+            setTimeout(() => setIsSaved(false), 2000);
         }
     };
 
@@ -73,9 +77,9 @@ export default function AdminSettings() {
                     <div className="mt-6 flex justify-end">
                         <button
                             onClick={handleSave}
-                            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-lg transition-colors"
+                            className={`font-bold py-2 px-6 rounded-lg transition-colors ${isSaved ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-indigo-600 hover:bg-indigo-500'} text-white`}
                         >
-                            Update Settings
+                            {isSaved ? 'Settings Saved!' : 'Update Settings'}
                         </button>
                     </div>
                 </div>

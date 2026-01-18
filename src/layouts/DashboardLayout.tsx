@@ -196,7 +196,7 @@ export function DashboardLayout({ role }: { role: 'admin' | 'team' | 'auctioneer
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="bg-slate-800 px-3 py-1 rounded-full text-xs font-mono text-slate-400 border border-slate-700">
-                            User: <span className="text-emerald-400 font-bold">{username}</span> ({role})
+                            User: <span className="text-emerald-400 font-bold">{username}</span> ({role.charAt(0).toUpperCase() + role.slice(1)})
                         </div>
                         <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700" />
                     </div>

@@ -283,9 +283,9 @@ function StatusBadge({ status }: { status: Player['status'] }) {
         'US': 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
     };
     const labels = {
-        'U': 'Unsold',
+        'U': 'Available',
         'S': 'SOLD',
-        'US': 'Passed'
+        'US': 'Unsold'
     };
 
     return (

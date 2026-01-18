@@ -19,6 +19,7 @@ export default function LandingPage() {
                         icon={<Shield className="w-10 h-10" />}
                         description="System Control & Management"
                         color="bg-rose-500"
+                        textColor="text-rose-500"
                     />
                     <PortalCard
                         to="/auctioneer/login"
@@ -26,6 +27,7 @@ export default function LandingPage() {
                         icon={<Gavel className="w-10 h-10" />}
                         description="Conduct the Bidding Process"
                         color="bg-amber-500"
+                        textColor="text-amber-500"
                     />
                     <PortalCard
                         to="/team/login"
@@ -33,6 +35,7 @@ export default function LandingPage() {
                         icon={<Users className="w-10 h-10" />}
                         description="Participate & Bid for Players"
                         color="bg-indigo-500"
+                        textColor="text-indigo-500"
                     />
                     <PortalCard
                         to="/projector"
@@ -40,6 +43,7 @@ export default function LandingPage() {
                         icon={<Monitor className="w-10 h-10" />}
                         description="Big Screen Display View"
                         color="bg-emerald-500"
+                        textColor="text-emerald-500"
                     />
                 </div>
             </div>
@@ -47,7 +51,7 @@ export default function LandingPage() {
     );
 }
 
-function PortalCard({ to, title, icon, description, color }: { to: string; title: string; icon: React.ReactNode; description: string; color: string }) {
+function PortalCard({ to, title, icon, description, color, textColor }: { to: string; title: string; icon: React.ReactNode; description: string; color: string; textColor: string }) {
     return (
         <Link
             to={to}
@@ -55,7 +59,7 @@ function PortalCard({ to, title, icon, description, color }: { to: string; title
         >
             <div className={`absolute top-0 left-0 w-full h-1 ${color}`} />
             <div className="flex flex-col items-center text-center gap-6">
-                <div className={`p-4 rounded-2xl bg-slate-950 border border-slate-800 group-hover:scale-110 transition-transform ${color.replace('bg-', 'text-')}`}>
+                <div className={`p-4 rounded-2xl bg-slate-950 border border-slate-800 group-hover:scale-110 transition-transform ${textColor}`}>
                     {icon}
                 </div>
                 <div>

@@ -10,9 +10,10 @@ const SOUNDS = {
 };
 
 export function useAuctionAudio() {
-    const { status, currentPlayer } = useAuctionStore();
+    const { status, currentPlayer, currentBid } = useAuctionStore();
     const prevStatus = useRef(status);
     const prevPlayerId = useRef(currentPlayer?.id);
+    const prevBid = useRef(currentBid);
 
     const playSound = (url: string) => {
         const audio = new Audio(url);
@@ -30,6 +31,18 @@ export function useAuctionAudio() {
             prevStatus.current = status;
         }
 
+        // New Bid Sound
+        if (currentBid !== prevBid.current && currentBid > 0 && status === 'BIDDING') {
+            // Subtle pop/ping for bids
+            // Better ping: https://cdn.freesound.org/previews/264/264981_4486188-lq.mp3 (Button/Switch)
+            const PING = 'https://cdn.freesound.org/previews/242/242501_4414128-lq.mp3'; // Placeholder
+            playSound(PING);
+            prevBid.current = currentBid;
+        } else {
+            // Sync ref if tracked but no sound needed (e.g. reset to 0)
+            prevBid.current = currentBid;
+        }
+
         // Player change sound (When going from IDLE/SOLD -> NOMINATED)
         if (currentPlayer?.id !== prevPlayerId.current) {
             if (currentPlayer && status === 'NOMINATED') {
@@ -37,5 +50,5 @@ export function useAuctionAudio() {
             }
             prevPlayerId.current = currentPlayer?.id;
         }
-    }, [status, currentPlayer]);
+    }, [status, currentPlayer, currentBid]);
 }

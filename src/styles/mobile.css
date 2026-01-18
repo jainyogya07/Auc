@@ -1,0 +1,182 @@
+/* Mobile-first responsive optimizations */
+
+/* PWA-specific safe area handling */
+@supports (padding: max(0px)) {
+    body {
+        padding-left: max(0px, env(safe-area-inset-left));
+        padding-right: max(0px, env(safe-area-inset-right));
+        padding-bottom: max(0px, env(safe-area-inset-bottom));
+    }
+}
+
+/* Prevent text size adjustment on orientation change */
+html {
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+}
+
+@media (max-width: 768px) {
+
+    /* Touch-optimized interactive elements */
+    button,
+    a,
+    [role="button"] {
+        min-height: 44px;
+        min-width: 44px;
+        touch-action: manipulation;
+    }
+
+    /* Larger tap targets for primary actions */
+    button[type="submit"],
+    .primary-action {
+        min-height: 48px;
+        font-size: 16px;
+    }
+
+    /* Reduced font sizes for mobile */
+    body {
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    h1 {
+        font-size: 24px;
+    }
+
+    h2 {
+        font-size: 20px;
+    }
+
+    h3 {
+        font-size: 18px;
+    }
+
+    /* Compact spacing */
+    .container,
+    .page-container {
+        padding: 12px;
+    }
+
+    /* Optimize for mobile performance */
+    * {
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+
+    /* Allow text selection for inputs */
+    input,
+    textarea {
+        -webkit-user-select: text;
+        user-select: text;
+    }
+
+    /* Sticky elements optimization */
+    .sticky-bottom {
+        position: sticky;
+        bottom: 0;
+        z-index: 10;
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    /* Horizontal scroll optimization */
+    .horizontal-scroll {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .horizontal-scroll::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* Image lazy loading & performance */
+    img {
+        content-visibility: auto;
+        will-change: transform;
+    }
+
+    /* Reduce motion for better performance */
+    @media (prefers-reduced-motion: reduce) {
+
+        *,
+        *::before,
+        *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+        }
+    }
+
+    /* Full-screen modals on mobile */
+    .modal {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        border-radius: 0;
+    }
+
+    /* Optimized input focus */
+    input:focus,
+    textarea:focus {
+        font-size: 16px;
+        /* Prevents zoom on iOS */
+    }
+}
+
+/* Landscape mobile optimizations */
+@media (max-width: 896px) and (orientation: landscape) {
+    body {
+        font-size: 12px;
+    }
+
+    button {
+        min-height: 36px;
+        padding: 6px 12px;
+    }
+
+    .container {
+        padding: 6px;
+    }
+
+    h1 {
+        font-size: 20px;
+    }
+}
+
+/* Small phones (iPhone SE, etc) */
+@media (max-width: 375px) {
+    body {
+        font-size: 13px;
+    }
+
+    h1 {
+        font-size: 20px;
+    }
+
+    button {
+        font-size: 12px;
+        padding: 8px 12px;
+    }
+
+    .container {
+        padding: 8px;
+    }
+}
+
+/* PWA display mode styles */
+@media (display-mode: standalone) {
+
+    /* Hide elements not needed in PWA */
+    .pwa-hide {
+        display: none;
+    }
+
+    /* Adjust header for PWA */
+    header {
+        padding-top: env(safe-area-inset-top);
+    }
+}

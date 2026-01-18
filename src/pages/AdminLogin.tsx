@@ -14,11 +14,11 @@ export default function AdminLogin() {
             setError('Please enter password');
             return;
         }
-        const success = await login({ role: 'admin', username: 'admin', password });
-        if (success) {
+        const result = await login({ role: 'admin', username: 'admin', password });
+        if (result.success) {
             navigate('/admin');
         } else {
-            setError('Invalid Password');
+            setError(result.error || 'Invalid Password');
         }
     };
 

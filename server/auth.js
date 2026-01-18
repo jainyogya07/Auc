@@ -35,16 +35,27 @@ function authenticateToken(req, res, next) {
 }
 
 // Socket.io Middleware
-function socketAuth(socket, next) {
-    const token = socket.handshake.auth.token;
-    if (!token) return next(new Error('Authentication error'));
+const socketAuth = (socket, next) => {
+    const token = socket.handshake.auth.token || socket.handshake.headers.token;
 
-    const user = verifyToken(token);
-    if (!user) return next(new Error('Authentication error'));
+    console.log(`[SocketAuth] Handshake attempt: id=${socket.id}`);
 
-    socket.user = user; // Attach user to socket
-    next();
-}
+    if (!token) {
+        console.warn(`[SocketAuth] No token provided for ${socket.id}`);
+        return next(new Error('Authentication error'));
+    }
+
+    jwt.verify(token, SECRET_KEY, (err, decoded) => {
+        if (err) {
+            console.error(`[SocketAuth] Token verify error for ${socket.id}:`, err.message);
+            return next(new Error('Authentication error'));
+        }
+
+        console.log(`[SocketAuth] Success for ${socket.id}: role=${decoded.role}, user=${decoded.username}`);
+        socket.user = decoded;
+        next();
+    });
+};
 
 module.exports = {
     generateToken,

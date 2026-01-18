@@ -6,7 +6,6 @@ import { Users } from 'lucide-react';
 export default function TeamLogin() {
     const navigate = useNavigate();
     const { login } = useAuthStore();
-    // const { teams } = useAuctionStore(); // Not needed for invite code login
     const [inviteCode, setInviteCode] = useState('');
     const [error, setError] = useState('');
 

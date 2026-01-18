@@ -9,4 +9,23 @@ services:
     envVars:
       - key: PORT
         value: 10000
+      - key: PYTHON_BOT_URL
+        fromService:
+          type: web
+          name: auction-bot
+          property: url
+      - key: MONGO_URI
+        sync: false
+    autoDeploy: false
+
+  - type: web
+    name: auction-bot
+    runtime: python
+    region: singapore
+    plan: free
+    buildCommand: pip install -r server/python_bot/requirements.txt
+    startCommand: cd server/python_bot && gunicorn app:app
+    envVars:
+      - key: PORT
+        value: 10000
     autoDeploy: false

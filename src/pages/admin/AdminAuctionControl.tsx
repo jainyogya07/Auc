@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuctionStore } from '../../store/useAuctionStore'; // Assuming getSocket is exported
+import { useToastStore } from '../../store/useToastStore';
 import { Play, Pause, AlertTriangle, RotateCcw } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { ChatPanel } from '../../components/ChatPanel';
 
 export default function AdminAuctionControl() {
     const {
@@ -13,23 +15,15 @@ export default function AdminAuctionControl() {
         adminRollbackBid,
         history,
         status,
-        currentBid,
         nominations: stateNominations,
         toggleNominations,
         finalizeNominations,
         resetAuction,
         connectedUsers,
-        isConnected // Import isConnected
+        isConnected
     } = useAuctionStore();
 
-    // Hike Input State
-    const [_hikeAmount, setHikeAmount] = useState(currentBid);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
-
-    // Sync local state when bid changes
-    useEffect(() => {
-        setHikeAmount(currentBid);
-    }, [currentBid]);
 
     const handleForcePause = () => {
         if (!isConnected) return;
@@ -51,10 +45,12 @@ export default function AdminAuctionControl() {
     const handleRollbackBid = () => {
         if (!isConnected) return;
         if (history.length === 0) {
-            alert("No bids to rollback!");
+            useToastStore.getState().addToast("No bids to rollback!", 'warning');
             return;
         }
-        if (confirm(`Rollback the last bid of ₹${history[0]?.amount?.toFixed(2)} Cr?`)) {
+        // Get last bid (newest is at end of array)
+        const lastBid = history[history.length - 1];
+        if (confirm(`Rollback the last bid of ₹${lastBid?.amount?.toFixed(2)} Cr?`)) {
             adminRollbackBid();
         }
     };
@@ -118,13 +114,13 @@ export default function AdminAuctionControl() {
                             <button
                                 onClick={isPaused ? handleForceResume : handleForcePause}
                                 className={cn(
-                                    "w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all",
+                                    "w-full py-2.5 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all",
                                     isPaused
                                         ? "bg-emerald-600 hover:bg-emerald-500 text-white"
                                         : "bg-amber-500 hover:bg-amber-400 text-black"
                                 )}
                             >
-                                {isPaused ? <Play className="w-6 h-6" /> : <Pause className="w-6 h-6" />}
+                                {isPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
                                 {isPaused ? "RESUME AUCTION" : "PAUSE AUCTION"}
                             </button>
 
@@ -132,14 +128,14 @@ export default function AdminAuctionControl() {
                                 <button
                                     onClick={handleForceUnsold}
                                     disabled={!currentPlayer}
-                                    className="py-3 bg-slate-800 hover:bg-slate-700 text-rose-400 font-medium rounded-xl border border-slate-700 disabled:opacity-50"
+                                    className="py-2 bg-slate-800 hover:bg-slate-700 text-rose-400 font-medium rounded-xl border border-slate-700 disabled:opacity-50 text-sm"
                                 >
                                     Force UNSOLD
                                 </button>
                                 <button
                                     onClick={handleRollbackBid}
                                     disabled={!currentPlayer || history.length === 0}
-                                    className="py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-xl border border-slate-700 disabled:opacity-50"
+                                    className="py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-xl border border-slate-700 disabled:opacity-50 text-sm"
                                 >
                                     Rollback Last Bid
                                 </button>
@@ -149,9 +145,9 @@ export default function AdminAuctionControl() {
                             <div className="mt-6 pt-6 border-t border-slate-700">
                                 <button
                                     onClick={() => setIsResetModalOpen(true)}
-                                    className="w-full py-3 bg-red-600/20 hover:bg-red-600/40 text-red-400 font-bold rounded-xl border border-red-600/50 flex items-center justify-center gap-2 transition-all"
+                                    className="w-full py-2 bg-red-600/20 hover:bg-red-600/40 text-red-400 font-bold rounded-xl border border-red-600/50 flex items-center justify-center gap-2 transition-all text-sm"
                                 >
-                                    <RotateCcw className="w-5 h-5" />
+                                    <RotateCcw className="w-4 h-4" />
                                     RESET ENTIRE AUCTION
                                 </button>
                                 <p className="text-xs text-slate-600 mt-2 text-center">This will completely reset the auction to its initial state</p>
@@ -179,7 +175,7 @@ export default function AdminAuctionControl() {
                                 <div className="flex gap-3">
                                     <button
                                         onClick={() => setIsResetModalOpen(false)}
-                                        className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-xl transition-colors"
+                                        className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-xl transition-colors text-sm"
                                     >
                                         Cancel
                                     </button>
@@ -188,7 +184,7 @@ export default function AdminAuctionControl() {
                                             resetAuction();
                                             setIsResetModalOpen(false);
                                         }}
-                                        className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow-lg shadow-red-900/20 transition-colors"
+                                        className="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow-lg shadow-red-900/20 transition-colors text-sm"
                                     >
                                         YES, NUKE IT
                                     </button>
@@ -206,20 +202,28 @@ export default function AdminAuctionControl() {
                         </h3>
 
                         <div className="space-y-4">
-                            <div className="flex gap-4">
+                            <div className="flex bg-slate-800 p-1 rounded-xl border border-slate-700">
                                 <button
                                     onClick={() => toggleNominations(true)}
-                                    disabled={stateNominations?.isOpen}
-                                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl disabled:opacity-50 disabled:bg-slate-700"
+                                    className={cn(
+                                        "flex-1 py-2 rounded-lg text-sm font-bold transition-all",
+                                        stateNominations?.isOpen
+                                            ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/20"
+                                            : "text-slate-400 hover:text-white"
+                                    )}
                                 >
-                                    Open Nominations
+                                    OPEN
                                 </button>
                                 <button
                                     onClick={() => toggleNominations(false)}
-                                    disabled={!stateNominations?.isOpen}
-                                    className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-xl disabled:opacity-50"
+                                    className={cn(
+                                        "flex-1 py-2 rounded-lg text-sm font-bold transition-all",
+                                        !stateNominations?.isOpen
+                                            ? "bg-slate-600 text-white shadow-lg"
+                                            : "text-slate-400 hover:text-white"
+                                    )}
                                 >
-                                    Close
+                                    CLOSED
                                 </button>
                             </div>
 
@@ -228,11 +232,11 @@ export default function AdminAuctionControl() {
                                     <span className="text-slate-400 text-sm">Teams Submitted</span>
                                     <span className="text-white font-mono font-bold">{stateNominations?.submissions?.length || 0}</span>
                                 </div>
-                                <div className="space-y-1">
+                                <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
                                     {stateNominations?.submissions?.map((sub, i) => (
-                                        <div key={i} className="text-xs text-slate-500 flex justify-between">
+                                        <div key={i} className="text-xs text-slate-500 flex justify-between px-2 py-1 bg-slate-800 rounded">
                                             <span>{sub.teamId}</span>
-                                            <span>{sub.playerIds.length} players</span>
+                                            <span className="text-slate-400">{sub.playerIds.length} players</span>
                                         </div>
                                     ))}
                                 </div>
@@ -244,9 +248,9 @@ export default function AdminAuctionControl() {
                                         finalizeNominations();
                                     }
                                 }}
-                                className="w-full py-3 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold rounded-xl"
+                                className="w-full py-3 bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white font-bold rounded-xl text-sm shadow-lg shadow-fuchsia-900/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                             >
-                                Finalize & Create Set 99
+                                FINALIZE & CREATE SET 99
                             </button>
                         </div>
                     </div>
@@ -272,6 +276,11 @@ export default function AdminAuctionControl() {
                                 <span className="text-white font-mono">{history.length}</span>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Chat Panel */}
+                    <div className="h-[400px]">
+                        <ChatPanel senderName="Admin" />
                     </div>
                 </div>
 

@@ -14,11 +14,11 @@ export default function AuctioneerLogin() {
             setError('Please enter password');
             return;
         }
-        const success = await login({ role: 'auctioneer', username: 'auctioneer', password });
-        if (success) {
+        const result = await login({ role: 'auctioneer', username: 'auctioneer', password });
+        if (result.success) {
             navigate('/auctioneer');
         } else {
-            setError('Invalid Password');
+            setError(result.error || 'Invalid Password');
         }
     };
 

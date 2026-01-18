@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { io } from 'socket.io-client';
+import { useToastStore } from './useToastStore';
+import { useAuthStore } from './useAuthStore';
 import type { AuctionState, Player, Team, AuctionSettings } from '../types';
 
 // Connect to Backend with dynamic auth
@@ -10,7 +12,12 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || ''; // Fallback to relat
 
 const socket = io(BACKEND_URL, {
     autoConnect: false, // Wait for auth
-    transports: ['websocket', 'polling'], // Explicitly define transports for better stability
+    transports: ['websocket'], // Force WebSocket for better performance/latency
+    reconnection: true,
+    reconnectionAttempts: Infinity, // Try forever
+    reconnectionDelay: 1000, // Start fast
+    reconnectionDelayMax: 5000, // Cap at 5s
+    timeout: 20000,
     auth: (cb) => {
         const token = localStorage.getItem('auc_token');
         cb({ token });
@@ -22,9 +29,19 @@ interface AuctionStore extends AuctionState {
     players: Player[];
     connectedUsers: any[]; // Track connected users globally
     isConnected: boolean;
+    latency: number | null; // ms
+    timeOffset: number; // serverTime - clientTime (ms)
+    currentPlayerId: string | null; // Server sends this, frontend derives currentPlayer
+    _lastUpdated: number; // Timestamp to force re-renders on state updates
+
+    // Server State properties that might be missing from AuctionState in some contexts
+    passedTeams: string[];
 
     // Actions
     placeBid: (teamId: string, amount: number) => void;
+    passBid: () => void;
+    escalateBid: () => void;
+    requestSync: () => void;
 
     // Admin Actions
     adminSetPlayer: (playerId: string) => void;
@@ -43,6 +60,7 @@ interface AuctionStore extends AuctionState {
     adminRTMDecision: (decision: boolean) => void;
     adminRTMHike: (amount: number) => void;
     adminRTMMatch: (match: boolean) => void;
+    adminResetRTM: () => void;
 
     // Team Management
     addTeam: (team: Team) => void;
@@ -60,31 +78,107 @@ interface AuctionStore extends AuctionState {
     toggleNominations: (isOpen: boolean) => void;
     submitNomination: (playerIds: string[]) => void;
     finalizeNominations: () => void;
+
+    // Bot Actions
+    toggleBot: (teamId: string, isBot: boolean) => void;
+
+    // --- Set Management ---
     updateSetOrder: (newOrder: number[]) => void;
 }
 
 export const useAuctionStore = create<AuctionStore>()((set, _get) => {
     // Listen for updates from server
     socket.on('connect', () => {
-        console.log('Socket Connected');
+        console.log('[Socket] Connected successfully');
         set({ isConnected: true });
+        useToastStore.getState().addToast('Connected to Server', 'success', 2000);
+
+        // Start Latency Check Loop
+        startLatencyCheck(set);
+
+        // Auto-sync state on connection
+        console.log('[Socket] Requesting initial state sync...');
+        socket.emit('client:sync');
     });
 
-    socket.on('disconnect', () => {
-        console.log('Socket Disconnected');
-        set({ isConnected: false });
-    });
+    socket.on('disconnect', (reason) => {
+        console.log('[Socket] Disconnected:', reason);
+        set({ isConnected: false, latency: null });
+        stopLatencyCheck();
 
-    socket.on('connect_error', (err) => {
-        console.error('Socket Connection Error:', err.message);
-        if (err.message === 'Authentication error') {
-            // Optionally triggering logout here might be too aggressive if it's just a flake
-            // But usually means token is invalid.
+        // Only show error for unexpected disconnects
+        if (reason === 'io server disconnect' || reason === 'transport close') {
+            useToastStore.getState().addToast(`Connection Lost: ${reason}`, 'error');
+        }
+
+        // If server closed the connection, try to reconnect
+        if (reason === 'io server disconnect') {
+            socket.connect();
         }
     });
 
-    socket.on('auction:update', (newState: Partial<AuctionState>) => {
-        set((state) => ({ ...state, ...newState }));
+    socket.on('reconnect', (attemptNumber) => {
+        console.log(`[Socket] Reconnected after ${attemptNumber} attempts`);
+        set({ isConnected: true });
+        useToastStore.getState().addToast('Connection Restored!', 'success');
+
+        // Sync state immediately after reconnection
+        console.log('[Socket] Requesting state sync after reconnect...');
+        socket.emit('client:sync');
+    });
+
+    socket.on('reconnect_attempt', (attemptNumber) => {
+        console.log(`[Socket] Reconnection attempt #${attemptNumber}`);
+        // Optional: We could show a specific "Reconnecting..." toast here if we had a way to update it
+    });
+
+    socket.on('reconnect_failed', () => {
+        console.error('[Socket] Reconnection failed after all attempts');
+        set({ isConnected: false });
+        useToastStore.getState().addToast('Connection Failed. Please refresh.', 'error');
+    });
+
+    socket.on('connect_error', (err) => {
+        console.error('[Socket] Connection Error:', err.message);
+        if (err.message === 'Authentication error') {
+            useToastStore.getState().addToast('Authentication Failed. Please login again.', 'error');
+        } else {
+            // Only show generic connection errors if we aren't already handling disconnect
+            // useToastStore.getState().addToast(`Connection Error: ${err.message}`, 'error');
+        }
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    socket.on('auction:update', (newState: any) => {
+        console.log('[Store] Received auction:update:', {
+            currentBid: newState.currentBid,
+            status: newState.status,
+            historyLen: newState.history?.length,
+            currentPlayerId: newState.currentPlayerId,
+            currentBidder: newState.currentBidder
+        });
+        // Explicitly set all known properties to ensure Zustand detects changes
+        set((state) => ({
+            ...state,
+            status: newState.status ?? state.status,
+            rtmState: newState.rtmState ?? state.rtmState,
+            teams: newState.teams ?? state.teams,
+            players: newState.players ?? state.players,
+            currentSet: newState.currentSet ?? state.currentSet,
+            currentPlayer: newState.currentPlayer ?? state.currentPlayer,
+            currentPlayerId: newState.currentPlayerId ?? state.currentPlayerId,
+            currentBid: newState.currentBid ?? state.currentBid,
+            currentBidder: newState.currentBidder ?? state.currentBidder,
+            history: newState.history ?? state.history,
+            eventLog: newState.eventLog ?? state.eventLog,
+            isPaused: newState.isPaused ?? state.isPaused,
+            timerExpiresAt: newState.timerExpiresAt ?? state.timerExpiresAt,
+            settings: newState.settings ?? state.settings,
+            nominations: newState.nominations ?? state.nominations,
+            setOrder: newState.setOrder ?? state.setOrder,
+            // Force re-render by updating a timestamp
+            _lastUpdated: Date.now()
+        }));
     });
 
     socket.on('auction:connected-users', (users: any[]) => {
@@ -93,15 +187,12 @@ export const useAuctionStore = create<AuctionStore>()((set, _get) => {
 
     socket.on('bid:error', (errorMsg: string) => {
         console.error('Bid Failed:', errorMsg);
-        alert(`Bid Failed: ${errorMsg}`);
+        useToastStore.getState().addToast(`Bid Failed: ${errorMsg}`, 'error');
     });
 
     socket.on('error', (errMsg: string) => {
         console.error('Auction Error:', errMsg);
-        // Only alert if it's a critical system error, not just a rejected bid handled above
-        if (!errMsg.includes('Bid')) {
-            alert(`Error: ${errMsg}`);
-        }
+        useToastStore.getState().addToast(`Error: ${errMsg}`, 'error');
     });
 
     return {
@@ -113,16 +204,21 @@ export const useAuctionStore = create<AuctionStore>()((set, _get) => {
         connectedUsers: [],
         currentSet: 1,
         currentPlayer: null,
+        currentPlayerId: null,
         currentBid: 0,
         currentBidder: null,
         history: [],
         eventLog: [],
+        passedTeams: [],
         isPaused: true,
         isConnected: false,
+        latency: null,
+        timeOffset: 0,
         timerExpiresAt: null,
         settings: { defaultDuration: 60, resetDuration: 30 },
         nominations: { isOpen: false, submissions: [] },
         setOrder: [],
+        _lastUpdated: 0,
 
         connectSocket: () => {
             if (!socket.connected) {
@@ -137,10 +233,34 @@ export const useAuctionStore = create<AuctionStore>()((set, _get) => {
         },
 
         placeBid: (teamId, amount) => {
-            // Removed optimistic update to prevent UI fluctuation
-            // State will update when server broadcasts auction:update
             console.log('[Store] placeBid:', { teamId, amount });
-            socket.emit('bid:place', { teamId, amount });
+            socket.emit('bid:place', { teamId, amount }, (response: any) => {
+                if (response?.error) {
+                    useToastStore.getState().addToast(response.error, 'error');
+                }
+            });
+        },
+
+        passBid: () => {
+            const { isConnected } = useAuctionStore.getState();
+            if (!isConnected) return;
+            const state = useAuthStore.getState();
+            if (state.role === 'team' && state.teamId) {
+                socket.emit('team:pass', { teamId: state.teamId }, (response: any) => {
+                    if (response?.error) useToastStore.getState().addToast(response.error, 'error');
+                });
+            }
+        },
+
+        escalateBid: () => {
+            const { isConnected } = useAuctionStore.getState();
+            if (!isConnected) return;
+            const state = useAuthStore.getState();
+            if (state.role === 'team' && state.teamId) {
+                socket.emit('team:escalate', { teamId: state.teamId }, (response: any) => {
+                    if (response?.error) useToastStore.getState().addToast(response.error, 'error');
+                });
+            }
         },
 
         adminSetPlayer: (playerId) => {
@@ -148,11 +268,29 @@ export const useAuctionStore = create<AuctionStore>()((set, _get) => {
         },
 
         adminSoldPlayer: (playerId, teamId, amount) => {
-            socket.emit('admin:sold', { playerId, teamId, amount });
+            return new Promise((resolve, reject) => {
+                socket.emit('admin:sold', { playerId, teamId, amount }, (response: any) => {
+                    if (response?.error) {
+                        useToastStore.getState().addToast(response.error, 'error');
+                        reject(response.error);
+                    } else {
+                        resolve(response);
+                    }
+                });
+            });
         },
 
         adminUnsoldPlayer: (playerId) => {
-            socket.emit('admin:unsold', { playerId });
+            return new Promise((resolve, reject) => {
+                socket.emit('admin:unsold', playerId, (response: any) => {
+                    if (response?.error) {
+                        useToastStore.getState().addToast(response.error, 'error');
+                        reject(response.error);
+                    } else {
+                        resolve(response);
+                    }
+                });
+            });
         },
 
         adminPauseAuction: (isPaused) => {
@@ -185,22 +323,35 @@ export const useAuctionStore = create<AuctionStore>()((set, _get) => {
         },
 
         adminRTMDecision: (decision) => {
-            socket.emit('admin:rtm-decision', { decision });
+            return new Promise((resolve, reject) => {
+                socket.emit('admin:rtm-decision', decision, (response: any) => {
+                    if (response?.error) reject(response.error);
+                    else resolve(response);
+                });
+            });
         },
 
         adminRTMHike: (amount) => {
-            socket.emit('admin:rtm-hike', { amount });
+            return new Promise((resolve, reject) => {
+                socket.emit('admin:rtm-hike', amount, (response: any) => {
+                    if (response?.error) reject(response.error);
+                    else resolve(response);
+                });
+            });
         },
 
         adminRTMMatch: (match) => {
-            socket.emit('admin:rtm-match', { match });
+            return new Promise((resolve, reject) => {
+                socket.emit('admin:rtm-match', { match }, (response: any) => {
+                    if (response?.error) reject(response.error);
+                    else resolve(response);
+                });
+            });
         },
 
-        submitHike: (amount: number) => {
-            socket.emit('admin:submit-hike', amount);
-        },
-        finalizeRTMMatch: (match: boolean) => {
-            socket.emit('admin:finalize-rtm-match', match);
+
+        adminResetRTM: () => {
+            socket.emit('admin:reset-rtm');
         },
 
         // Team Management
@@ -230,11 +381,62 @@ export const useAuctionStore = create<AuctionStore>()((set, _get) => {
             socket.emit('admin:finalize-nominations', {});
         },
 
+        toggleBot: (teamId, isBot) => {
+            socket.emit('toggle_bot', { teamId, isBot });
+        },
+
         resetAuction: () => {
             socket.emit('admin:reset');
+        },
+
+        // Force Sync Action
+        requestSync: () => {
+            if (socket.connected) {
+                socket.emit('client:sync');
+            }
         }
     };
 });
 
 
 export const getSocket = () => socket;
+
+// --- Latency & Visibility Helper ---
+let latencyInterval: any = null;
+
+const startLatencyCheck = (set: any) => {
+    stopLatencyCheck();
+    latencyInterval = setInterval(() => {
+        const start = Date.now();
+        socket.emit('latency:ping', () => {
+            const lat = Date.now() - start;
+            set({ latency: lat });
+        });
+    }, 5000);
+};
+
+const stopLatencyCheck = () => {
+    if (latencyInterval) clearInterval(latencyInterval);
+    latencyInterval = null;
+};
+
+// Auto-reconnect on visibility change (Mobile Wake-up)
+if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            // If supposed to be connected (based on valid auth? we assume yes if loaded)
+            // But we only force if disconnected
+            if (!socket.connected) {
+                console.log('[Visibility] Tab woke up, force reconnecting...');
+                socket.connect();
+            }
+            // Immediately ping to check health
+            if (socket.connected) {
+                const start = Date.now();
+                socket.emit('latency:ping', () => {
+                    useAuctionStore.setState({ latency: Date.now() - start });
+                });
+            }
+        }
+    });
+}

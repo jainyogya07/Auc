@@ -91,7 +91,7 @@ export default function AuctioneerUpcoming() {
                                                     <span className="text-emerald-500">₹ {player.basePrice} Cr</span>
                                                 </div>
                                             </div>
-                                            {player.isForeign && <span className="ml-auto text-xs bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/20">海外</span>}
+                                            {player.isForeign && <span className="ml-auto text-xs bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/20">Overseas</span>}
                                         </div>
                                     ))}
                                 </div>

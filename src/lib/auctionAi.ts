@@ -8,8 +8,8 @@ interface BidStrategy {
 }
 
 // Rules (IPL Context)
-const MIN_SQUAD_SIZE = 18;
-// MAX_SQUAD_SIZE = 25: Reserved for future rule validation
+export const MIN_SQUAD_SIZE = 18;
+export const MAX_SQUAD_SIZE = 25;
 const MIN_PLAYER_COST = 0.20; // 20 Lakhs base
 
 export function calculateBidStrategy(team: Team, currentBid: number): BidStrategy {

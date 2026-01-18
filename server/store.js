@@ -1,4 +1,4 @@
-const { Team, Player, AuctionState, User } = require('./models'); // Trigger restart Mobile UI Updates
+const { Team, Player, AuctionState, User } = require('./models');
 const { INITIAL_TEAMS, INITIAL_PLAYERS } = require('./mockData');
 const BotEngine = require('./botEngine');
 
@@ -6,6 +6,11 @@ class AuctionManager {
     constructor() {
         this.state = null; // Will be loaded async
         this.botEngine = new BotEngine(this); // Init Bot Engine
+        this.timers = {}; // Track active timeouts: { bidTimer: null, closingTimer: null }
+    }
+
+    setIo(io) {
+        this.io = io;
     }
 
     async initialize() {
@@ -20,8 +25,11 @@ class AuctionManager {
                 currentPlayerId: null,
                 currentBid: 0,
                 currentBidder: null,
+                passedTeams: [],
                 history: [],
                 eventLog: [],
+                eventLog: [],
+                passedTeams: [], // Track teams that have passed
                 isPaused: true,
                 settings: { defaultDuration: 60, resetDuration: 30 }
             });
@@ -63,6 +71,13 @@ class AuctionManager {
             const players = await Player.find();
             const sets = [...new Set(players.map(p => p.set))].sort((a, b) => a - b);
             await AuctionState.updateOne({}, { setOrder: sets });
+        }
+
+        // 5. Ensure Timer State is Clean on Restart
+        if (auctionState.timerExpiresAt) {
+            // If server restarted during a timer, we can either resume or clear.
+            // For safety/strictness, let's clear it to avoid stuck "Closing" states with no active timeout.
+            await AuctionState.updateOne({}, { timerExpiresAt: null });
         }
 
         // 5. Load Full State into Memory
@@ -117,6 +132,59 @@ class AuctionManager {
         if (this.state) this.state.eventLog.push(entry);
     }
 
+    // --- Timer Logic (Smart 2-Step) ---
+
+    // Warning Phase: 2 minutes of idle time. No UI timer.
+    startBidTimer() {
+        this.clearTimers();
+        console.log('[Timer] Starting 2-min Idle Timer');
+
+        // Set a timeout for 2 minutes (120s) to trigger the "Closing Phase"
+        this.timers.bidTimer = setTimeout(() => {
+            this.triggerClosingPhase();
+        }, 120 * 1000);
+    }
+
+    // Closing Phase: 60s countdown visible to users.
+    async triggerClosingPhase() {
+        console.log('[Timer] Idle ended. Triggering 60s Closing Phase.');
+        const closingDuration = 60 * 1000;
+        const expiresAt = Date.now() + closingDuration;
+
+        await AuctionState.updateOne({}, { timerExpiresAt: expiresAt });
+        if (this.state) this.state.timerExpiresAt = expiresAt; // Optimistic
+
+        // Broadcast update immediately so clients see the timer
+        if (this.io) this.io.emit('auction:update', this.state);
+
+        this.timers.closingTimer = setTimeout(() => {
+            this.autoFinalize();
+        }, closingDuration);
+    }
+
+    async autoFinalize() {
+        console.log('[Timer] 60s Closing Phase ended. Auto-finalizing.');
+        // If we have a current bidder, SOLD. Else UNSOLD.
+        try {
+            if (this.state.currentBidder) {
+                await this.soldPlayer(this.state.currentPlayerId, this.state.currentBidder, this.state.currentBid);
+            } else {
+                await this.unsoldPlayer(this.state.currentPlayerId);
+            }
+            // Broadcast the result
+            if (this.io) this.io.emit('auction:update', this.state);
+        } catch (err) {
+            console.error('[Timer] Auto-finalize error:', err);
+        }
+    }
+
+    clearTimers() {
+        if (this.timers.bidTimer) clearTimeout(this.timers.bidTimer);
+        if (this.timers.closingTimer) clearTimeout(this.timers.closingTimer);
+        this.timers = { bidTimer: null, closingTimer: null };
+    }
+
+
     // --- Actions (Async) ---
 
     async placeBid(teamId, amount) {
@@ -130,6 +198,11 @@ class AuctionManager {
         // Get current player for base price validation
         const player = this.state.players.find(p => p.id === this.state.currentPlayerId);
         const basePrice = player?.basePrice || 0;
+
+        // Check if team has passed
+        if (this.state.passedTeams && this.state.passedTeams.includes(teamId)) {
+            throw new Error('You have passed. Escalate to rejoin bidding.');
+        }
 
         // First bid must be at least base price, subsequent bids must be higher than current
         const bidAmount = Number(amount);
@@ -147,17 +220,20 @@ class AuctionManager {
         if (!team) throw new Error('Team not found');
         if (team.purse < bidAmount) throw new Error(`Insufficient purse! (Has: ${team.purse}, Bid: ${bidAmount})`);
 
-        // Anti-Snipe Validation
-        if (this.state.timerExpiresAt) {
-            const timeLeft = this.state.timerExpiresAt - Date.now();
-            if (timeLeft < 250 && timeLeft > 0) {
-                throw new Error('Anti-Snipe Protection: Bid Locked! (Too late)');
-            }
-        }
+        // Anti-Snipe Validation - DISABLED to prevent clock drift issues
+        // if (this.state.timerExpiresAt) {
+        //     const timeLeft = this.state.timerExpiresAt - Date.now();
+        //     if (timeLeft < 250 && timeLeft > 0) {
+        //         throw new Error('Anti-Snipe Protection: Bid Locked! (Too late)');
+        //     }
+        // }
 
         // Updates
-        const resetTime = (this.state.settings?.resetDuration || 30) * 1000;
-        const newTimerExpiresAt = Date.now() + resetTime;
+        // RESET Timer Logic: New bid = Reset to "Idle Phase" (2 mins hidden timer)
+        this.startBidTimer();
+
+        // We do NOT set timerExpiresAt here anymore. It stays null until "Closing Phase".
+        const newTimerExpiresAt = null;
 
         const bid = {
             id: Math.random().toString(36).substr(2, 9),
@@ -180,7 +256,12 @@ class AuctionManager {
         await this.syncState();
 
         // Trigger Bot Evaluation
+        // Trigger Bot Evaluation
         this.botEngine.evaluateState(this.state);
+
+        if (this.io) {
+            this.io.emit('auction:update', this.state);
+        }
 
         return this.state;
     }
@@ -195,23 +276,23 @@ class AuctionManager {
             throw new Error('No bids to rollback');
         }
 
-        // Remove the last bid
-        const lastBid = history[0]; // Most recent bid
-        const remainingHistory = history.slice(1);
+        // Remove the last bid (bids are pushed to end, so newest is at end)
+        const lastBid = history[history.length - 1]; // Most recent bid is at end
+        const remainingHistory = history.slice(0, -1); // All except last
 
         // Determine new current bid and bidder from remaining history
         let newCurrentBid = 0;
         let newCurrentBidder = null;
 
         if (remainingHistory.length > 0) {
-            // Revert to the previous bid
-            newCurrentBid = remainingHistory[0].amount;
-            newCurrentBidder = remainingHistory[0].teamId;
+            // Revert to the previous bid (now at end of remaining)
+            newCurrentBid = remainingHistory[remainingHistory.length - 1].amount;
+            newCurrentBidder = remainingHistory[remainingHistory.length - 1].teamId;
         }
 
-        // Reset timer to default duration
-        const resetTime = (this.state.settings?.defaultDuration || 60) * 1000;
-        const newTimerExpiresAt = Date.now() + resetTime;
+        // Reset timer to default idle phase
+        this.startBidTimer();
+        const newTimerExpiresAt = null;
 
         // DB Update - remove last bid and revert state
         await AuctionState.updateOne({}, {
@@ -219,7 +300,7 @@ class AuctionManager {
             currentBidder: newCurrentBidder,
             status: remainingHistory.length > 0 ? 'BIDDING' : 'NOMINATED',
             timerExpiresAt: newTimerExpiresAt,
-            $pop: { history: -1 } // Remove first element (last bid)
+            $pop: { history: 1 } // Remove last element (1 = pop from end)
         });
 
         await this.logEvent('BID_ROLLBACK', {
@@ -233,8 +314,10 @@ class AuctionManager {
     }
 
     async setNextPlayer(playerId) {
+        console.log(`[Store] setNextPlayer: ${playerId}. Current Status: ${this.state.status}`);
         // Idempotency check: If already on this player, just return state
         if (this.state.currentPlayerId === playerId && ['NOMINATED', 'BIDDING'].includes(this.state.status)) {
+            console.log('[Store] setNextPlayer ignored (idempotent)');
             return this.state;
         }
 
@@ -245,8 +328,9 @@ class AuctionManager {
         const player = this.state.players.find(p => p.id === playerId);
         if (!player) throw new Error('Player not found');
 
-        const duration = (this.state.settings?.defaultDuration || 60) * 1000;
-        const newTimerExpiresAt = Date.now() + duration;
+        // Start Idle Timer (2 mins)
+        this.startBidTimer();
+        const newTimerExpiresAt = null;
 
         // DB Update
         await AuctionState.updateOne({}, {
@@ -255,6 +339,9 @@ class AuctionManager {
             currentPlayerId: playerId,
             currentBid: 0,
             currentBidder: null,
+            passedTeams: [], // Reset passed teams
+            currentBidder: null,
+            passedTeams: [],
             history: [],
             timerExpiresAt: newTimerExpiresAt
         });
@@ -338,10 +425,17 @@ class AuctionManager {
         await AuctionState.updateOne({}, {
             status: 'SOLD',
             rtmState: null,
+            rtmState: null,
             timerExpiresAt: null
         });
 
+        this.clearTimers();
+
         await this.logEvent('PLAYER_SOLD', { playerId, teamId, amount, soldVia, name: player.name });
+
+        // Update bot market intelligence
+        this.botEngine.updateMarketIntelligence(player, amount, teamId);
+
         return await this.syncState();
     }
 
@@ -349,7 +443,13 @@ class AuctionManager {
 
     // 1. Ex-Team Decision (Yes/No)
     async handleRTMDecision(decision) {
-        if (this.state.rtmState !== 'PENDING_DECISION') throw new Error('Invalid RTM State');
+        console.log(`[RTM] handleRTMDecision. Current: ${this.state.rtmState}, Decision: ${decision}`);
+
+        // Idempotency: If already moved past PENDING_DECISION, assume success and return state
+        if (this.state.rtmState !== 'PENDING_DECISION') {
+            console.warn(`[RTM] handleRTMDecision ignored/skipped. Current phase is '${this.state.rtmState}'. decision=${decision}`);
+            return this.state;
+        }
 
         if (!decision) {
             // Ex-Team declined RTM. Sell to Winner.
@@ -369,7 +469,13 @@ class AuctionManager {
 
     // 2. Winner Hike (New Amount)
     async submitHike(amount) {
-        if (this.state.rtmState !== 'AWAITING_HIKE') throw new Error('Invalid RTM State');
+        console.log(`[RTM] submitHike. Current: ${this.state.rtmState}, Amount: ${amount}`);
+
+        // Idempotency
+        if (this.state.rtmState !== 'AWAITING_HIKE') {
+            console.warn(`[RTM] submitHike ignored. Current phase '${this.state.rtmState}' !== 'AWAITING_HIKE'. amount=${amount}`);
+            return this.state;
+        }
 
         const hikeAmount = Number(amount);
         if (isNaN(hikeAmount)) throw new Error('Invalid hike amount');
@@ -395,7 +501,8 @@ class AuctionManager {
 
     // 3. Ex-Team Match Decision (Yes/No)
     async finalizeRTMMatch(matches) {
-        if (this.state.rtmState !== 'AWAITING_MATCH') throw new Error('Invalid RTM State');
+        console.log(`[RTM] finalizeRTMMatch. Current: ${this.state.rtmState}, Matches: ${matches}`);
+        if (this.state.rtmState !== 'AWAITING_MATCH') throw new Error(`Invalid RTM State: ${this.state.rtmState} (Expected AWAITING_MATCH)`);
 
         const player = this.state.players.find(p => p.id === this.state.currentPlayerId);
         const originalTeamId = player.originalTeamId;
@@ -423,6 +530,17 @@ class AuctionManager {
         }
     }
 
+    async resetRTM() {
+        console.log('[RTM] Force Reset triggered by Admin');
+        await AuctionState.updateOne({}, {
+            rtmState: null,
+            timerExpiresAt: null,
+        });
+        this.clearTimers(); // Safety clear
+        await this.logEvent('RTM_RESET_BY_ADMIN', {});
+        return await this.syncState();
+    }
+
 
     async unsoldPlayer(playerId) {
         await Player.updateOne({ id: playerId }, { $set: { status: 'US' } });
@@ -442,6 +560,18 @@ class AuctionManager {
 
     async setPause(isPaused) {
         await AuctionState.updateOne({}, { isPaused });
+
+        // If paused, maybe we should pause the timer? 
+        // For simplicity v1: If paused, we Clear timers. If resumed, we Restart Idle timer?
+        // Let's just Clear on Pause to prevent auto-sell while paused.
+        if (isPaused) {
+            this.clearTimers();
+        } else {
+            // If resuming and we are in active state, restart idle timer
+            if (['BIDDING', 'NOMINATED'].includes(this.state.status)) {
+                this.startBidTimer();
+            }
+        }
         await this.logEvent(isPaused ? 'AUCTION_PAUSED' : 'AUCTION_RESUMED', {});
         return await this.syncState();
     }
@@ -599,6 +729,7 @@ class AuctionManager {
                 status: 'SOLD',
                 timerExpiresAt: null
             });
+            this.clearTimers();
         }
 
         await this.logEvent('PLAYER_RTM', { playerId, teamId, amount, name: player.name });
@@ -638,6 +769,103 @@ class AuctionManager {
         await Team.deleteOne({ id: teamId });
         await this.logEvent('TEAM_DELETED', { teamId });
         return await this.syncState();
+    }
+
+    async pass(teamId) {
+        if (!this.state.currentPlayer || this.state.status !== 'BIDDING') {
+            throw new Error('Bidding not active');
+        }
+
+        let passed = this.state.passedTeams || [];
+        if (!passed.includes(teamId)) {
+            passed.push(teamId);
+            await AuctionState.updateOne({}, { passedTeams: passed });
+            await this.logEvent('TEAM_PASSED', { teamId });
+            return await this.syncState();
+        }
+        return this.state;
+    }
+
+    async escalate(teamId) {
+        if (!this.state.currentPlayer || this.state.status !== 'BIDDING') {
+            throw new Error('Bidding not active');
+        }
+
+        let passed = this.state.passedTeams || [];
+        if (passed.includes(teamId)) {
+            passed = passed.filter(id => id !== teamId);
+            await AuctionState.updateOne({}, { passedTeams: passed });
+            await this.logEvent('TEAM_ESCALATED', { teamId });
+            return await this.syncState();
+        }
+        return this.state;
+    }
+
+    /**
+     * Seed retained players into teams
+     */
+    async seedRetentions(retentionData) {
+        const { teamId, players } = retentionData;
+
+        const team = await Team.findOne({ id: teamId });
+        if (!team) throw new Error(`Team not found: ${teamId}`);
+
+        team.retentions = players;
+        const totalDeduction = players.reduce((sum, p) => sum + (p.deduction / 100), 0);
+        team.purse -= totalDeduction;
+        team.purseUsed += totalDeduction;
+        team.squadCount += players.length;
+
+        for (const retention of players) {
+            const player = await Player.findOne({ name: retention.playerName });
+            if (player) {
+                if (player.isForeign) team.foreignPlayers += 1;
+                player.isRetained = true;
+                player.retainedBy = teamId;
+                player.retentionAmount = retention.deduction / 100;
+                player.status = 'S';
+                player.soldTo = teamId;
+                player.soldPrice = retention.deduction / 100;
+                await player.save();
+            }
+        }
+
+        await team.save();
+        await this.refreshState();
+        return this.state;
+    }
+
+    async clearRetentions() {
+        const teams = await Team.find({});
+
+        for (const team of teams) {
+            if (team.retentions && team.retentions.length > 0) {
+                const totalDeduction = team.retentions.reduce((sum, p) => sum + (p.deduction / 100), 0);
+                team.purse += totalDeduction;
+                team.purseUsed -= totalDeduction;
+                team.squadCount -= team.retentions.length;
+
+                for (const retention of team.retentions) {
+                    const player = await Player.findOne({ name: retention.playerName });
+                    if (player) {
+                        if (player.isForeign) team.foreignPlayers = Math.max(0, team.foreignPlayers - 1);
+                        player.isRetained = false;
+                        player.retainedBy = null;
+                        player.retentionAmount = null;
+                        player.status = 'U';
+                        player.soldTo = null;
+                        player.soldPrice = null;
+                        await player.save();
+                    }
+                }
+
+                team.retentions = [];
+                await team.save();
+            }
+        }
+
+        await this.refreshState();
+        return this.state;
     }
 }
 

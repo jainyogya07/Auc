@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useAuctionStore } from '../../store/useAuctionStore';
-import { Plus, Trash2, Edit2, X } from 'lucide-react';
 import type { Team } from '../../types';
+import BotBadge from '../../components/BotBadge';
+import { Plus, Trash2, Edit2, X, Bot } from 'lucide-react';
 
 export default function AdminTeams() {
-    const { teams, addTeam, updateTeam, deleteTeam } = useAuctionStore();
+    const { teams, addTeam, updateTeam, deleteTeam, toggleBot } = useAuctionStore();
     const [isAdding, setIsAdding] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -46,17 +47,55 @@ export default function AdminTeams() {
         setIsAdding(true);
     };
 
+    const toggleBotHandler = (teamId: string, currentStatus: boolean) => {
+        toggleBot(teamId, !currentStatus);
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-slate-100">Teams Configuration</h2>
+                <div>
+                    <h2 className="text-2xl font-bold text-slate-100">Team Management</h2>
+                    <p className="text-slate-400 mt-1">Manage teams participating in the auction</p>
+                </div>
                 <button
-                    onClick={() => setIsAdding(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors"
+                    onClick={() => setIsAdding(!isAdding)}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 font-medium transition-colors"
                 >
-                    <Plus className="w-4 h-4" />
-                    Add Team
+                    {isAdding ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+                    {isAdding ? 'Cancel' : 'Add Team'}
                 </button>
+            </div>
+
+            {/* Quick Bot Setup */}
+            <div className="bg-gradient-to-br from-purple-900/30 to-slate-900 border border-purple-500/30 rounded-xl p-6">
+                <div className="flex items-center gap-3 mb-4">
+                    <Bot className="w-6 h-6 text-purple-400" />
+                    <div>
+                        <h3 className="text-lg font-bold text-slate-100">Quick Bot Setup</h3>
+                        <p className="text-sm text-slate-400">Toggle AI control for each team</p>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {teams.map(team => (
+                        <button
+                            key={team.id}
+                            onClick={() => toggleBotHandler(team.id, team.isBot || false)}
+                            className={`flex items-center gap-2 px-4 py-3 rounded-lg cursor-pointer transition-all ${team.isBot
+                                ? 'bg-purple-600/30 border-purple-500 text-purple-200'
+                                : 'bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-slate-800'
+                                } border`}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={!!team.isBot}
+                                onChange={() => { }}
+                                className="rounded"
+                            />
+                            <span className="text-sm font-medium">{team.name}</span>
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {isAdding && (
@@ -143,7 +182,10 @@ export default function AdminTeams() {
                                     {team.code}
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-white text-lg">{team.name}</h3>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-bold text-white text-lg">{team.name}</h3>
+                                        {team.isBot && <BotBadge />}
+                                    </div>
                                     <div className="text-xs text-slate-500 font-mono">{team.code}</div>
                                 </div>
                             </div>
@@ -151,7 +193,11 @@ export default function AdminTeams() {
                                 <button onClick={() => startEdit(team)} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-blue-400">
                                     <Edit2 className="w-4 h-4" />
                                 </button>
-                                <button onClick={() => deleteTeam(team.id)} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-400">
+                                <button onClick={() => {
+                                    if (confirm(`Are you sure you want to delete "${team.name}"? This cannot be undone.`)) {
+                                        deleteTeam(team.id);
+                                    }
+                                }} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-400">
                                     <Trash2 className="w-4 h-4" />
                                 </button>
                             </div>

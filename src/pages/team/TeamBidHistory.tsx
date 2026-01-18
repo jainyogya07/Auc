@@ -5,18 +5,10 @@ import type { AuctionEvent } from '../../types';
 
 export default function TeamBidHistory() {
     const { teamId } = useAuthStore();
-    const { eventLog } = useAuctionStore();
+    const { eventLog, players } = useAuctionStore();
 
-    // Filter events relevant to this team
-    // 1. Bids placed by this team
-    // 2. Players sold to this team
-    // 3. Players sold to others (maybe? for context. limit to this team for now as per specific request)
-    // Actually "Team Bid History" usually implies mostly their own actions.
-    // Let's show:
-    // - Bids placed by team
-    // - Players sold to team
-    // - Players lost by team (if they were the second highest bidder? Hard to track without full history logic)
-    // Let's stick to "My Activity"
+    // Create a player lookup map for efficient name resolution
+    const playerMap = new Map(players.map(p => [p.id, p]));
 
     const myEvents = eventLog.filter(event => {
         if (event.type === 'BID_PLACED') return event.details.teamId === teamId;
@@ -44,8 +36,11 @@ export default function TeamBidHistory() {
 
     const getDescription = (event: AuctionEvent) => {
         const { amount, name, playerId } = event.details;
-        if (event.type === 'BID_PLACED') return `Bid of ₹${amount} Cr for Player ID ${playerId}`; //Ideally need player name map or fetch
-        if (event.type === 'PLAYER_SOLD') return `Won ${name} for ₹${amount} Cr`;
+        const player = playerMap.get(playerId);
+        const resolvedName = name || player?.name || `ID: ${playerId}`;
+
+        if (event.type === 'BID_PLACED') return `Bid of ₹${amount} Cr for ${resolvedName}`;
+        if (event.type === 'PLAYER_SOLD') return `Won ${resolvedName} for ₹${amount} Cr`;
         return JSON.stringify(event.details);
     };
 

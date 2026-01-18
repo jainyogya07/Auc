@@ -13,7 +13,13 @@ const teamSchema = new mongoose.Schema({
     foreignPlayers: { type: Number, default: 0 },
     rtmCardsLeft: { type: Number, default: 0 },
     color: String,
-    isBot: { type: Boolean, default: false }
+    isBot: { type: Boolean, default: false },
+    retentions: [{
+        playerId: String,
+        playerName: String,
+        deduction: Number,  // Amount deducted from purse (in Cr)
+        set: String         // Which set player belongs to
+    }]
 });
 
 // Player Schema
@@ -58,7 +64,11 @@ const playerSchema = new mongoose.Schema({
         fifties: Number,
         fours: Number,
         sixes: Number
-    }
+    },
+    // Retention tracking
+    isRetained: { type: Boolean, default: false },
+    retainedBy: String,  // Team ID
+    retentionAmount: Number
 });
 
 // Auction State Schema (Singleton)
@@ -68,6 +78,7 @@ const auctionStateSchema = new mongoose.Schema({
     currentPlayerId: String, // Referencing Player ID string (not ObjectId to keep logic simple)
     currentBid: { type: Number, default: 0 },
     currentBidder: String, // Team ID
+    passedTeams: { type: [String], default: [] },
     history: [{
         id: String,
         playerId: String,
