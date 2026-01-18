@@ -76,6 +76,7 @@ export default function AuctioneerDashboard() {
     }, [storeCurrentPlayer, currentPlayerId, players]);
 
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isEditingPrice, setIsEditingPrice] = useState(false);
 
     // Reset processing state when player, status, or RTM state changes
     useEffect(() => {
@@ -169,9 +170,9 @@ export default function AuctioneerDashboard() {
     }
 
     return (
-        <div className="min-h-[calc(100vh-8rem)] flex flex-col gap-6">
+        <div className="min-h-[calc(100vh-8rem)] flex flex-col gap-6 p-4 md:p-6 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-indigo-950/20 to-slate-950">
             {/* Top Bar - Current Status */}
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-900/50 border border-slate-800 p-4 md:p-6 rounded-2xl">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white/5 backdrop-blur-xl border border-white/10 p-4 md:p-6 rounded-3xl shadow-2xl">
                 <div>
                     <div className="text-sm text-slate-400 font-mono uppercase tracking-wider mb-1">Current Set</div>
                     <div className="text-xl font-bold text-white">Set {currentSet}</div>
@@ -199,28 +200,28 @@ export default function AuctioneerDashboard() {
                 </div>
             </div>
 
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Main Player Display */}
-                <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center relative overflow-hidden group">
-                    <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 opacity-50" />
+                <div className="lg:col-span-2 bg-slate-900/40 backdrop-blur-lg border border-white/10 rounded-3xl p-8 flex flex-col items-center justify-center relative overflow-hidden group shadow-2xl">
+                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-transparent to-emerald-500/5 opacity-50" />
 
                     {/* Player Card Content */}
-                    <div className="relative z-10 text-center space-y-4 w-full">
-                        <div className="w-24 h-24 rounded-full bg-slate-800 mx-auto border-2 border-slate-700 shadow-xl flex items-center justify-center text-slate-600 text-3xl relative">
+                    <div className="relative z-10 text-center space-y-6 w-full">
+                        <div className="w-32 h-32 rounded-full bg-slate-800/80 mx-auto border-4 border-slate-700/50 shadow-2xl flex items-center justify-center text-slate-600 text-5xl relative backdrop-blur-sm">
                             🏏
-                            {currentPlayer.isForeign && <span className="absolute top-0 right-0 text-lg">✈️</span>}
+                            {currentPlayer.isForeign && <span className="absolute top-0 right-0 text-2xl drop-shadow-lg">✈️</span>}
                         </div>
                         <div>
-                            <h1 className="text-2xl font-bold text-white mb-1">{currentPlayer.name}</h1>
-                            <div className="flex items-center justify-center gap-2 text-sm text-slate-300">
-                                <span className="px-2 py-0.5 bg-slate-800 rounded text-xs">{currentPlayer.role}</span>
-                                <span className="px-2 py-0.5 bg-slate-800 rounded text-xs">{currentPlayer.country}</span>
+                            <h1 className="text-4xl md:text-5xl font-black text-white mb-2 tracking-tight drop-shadow-md">{currentPlayer.name}</h1>
+                            <div className="flex items-center justify-center gap-3 text-base text-slate-300">
+                                <span className="px-3 py-1 bg-white/5 border border-white/10 rounded-full">{currentPlayer.role}</span>
+                                <span className="px-3 py-1 bg-white/5 border border-white/10 rounded-full">{currentPlayer.country}</span>
                             </div>
                         </div>
 
-                        <div className="py-4 border-t border-b border-slate-800 w-full max-w-md mx-auto">
-                            <div className="text-xs text-slate-500 uppercase tracking-widest mb-1">Current Bid</div>
-                            <div className="text-3xl font-black text-emerald-400 tracking-tight transition-all">
+                        <div className="py-6 border-t border-white/10 w-full max-w-lg mx-auto bg-black/20 rounded-2xl">
+                            <div className="text-xs text-slate-400 uppercase tracking-[0.2em] mb-2 font-bold">Current Bid</div>
+                            <div className="text-5xl md:text-6xl font-black text-emerald-400 tracking-tighter drop-shadow-xl" style={{ textShadow: '0 0 40px rgba(52, 211, 153, 0.3)' }}>
                                 ₹ {currentBid.toFixed(2)} Cr
                             </div>
 
@@ -228,11 +229,11 @@ export default function AuctioneerDashboard() {
                             <TimerDisplay timerExpiresAt={timerExpiresAt} />
 
                             {leadingTeam ? (
-                                <div className="text-sm text-slate-300 mt-2 flex items-center justify-center gap-2">
-                                    Held by <span className="text-white font-bold px-2 py-0.5 bg-slate-800 rounded">{leadingTeam.name}</span>
+                                <div className="text-base text-slate-300 mt-4 flex items-center justify-center gap-2">
+                                    Held by <span className="text-emerald-300 font-bold px-3 py-1 bg-emerald-950/30 border border-emerald-500/20 rounded-lg">{leadingTeam.name}</span>
                                 </div>
                             ) : (
-                                <div className="text-sm text-slate-500 mt-2">
+                                <div className="text-sm text-slate-500 mt-4 font-medium">
                                     Base Price: ₹ {currentPlayer.basePrice} Cr
                                 </div>
                             )}
@@ -241,160 +242,52 @@ export default function AuctioneerDashboard() {
                 </div>
 
                 {/* Control Panel */}
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col">
+                <div className="bg-slate-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 flex flex-col shadow-2xl">
                     <h3 className="text-lg font-medium text-slate-200 mb-6 flex items-center gap-2">
                         <Hammer className="w-5 h-5 text-amber-500" />
                         Controls
                     </h3>
 
                     <div className="space-y-4 flex-1">
-                        {/* RTM Controls Overlay/Section */}
-                        {rtmState ? (
-                            <div className="bg-slate-900/90 border border-slate-700 p-6 rounded-2xl space-y-6 shadow-2xl backdrop-blur-sm animate-in zoom-in duration-300">
-                                <div className="flex justify-between items-center border-b border-slate-700 pb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-emerald-500/10 rounded-lg">
-                                            <ShieldCheck className="w-6 h-6 text-emerald-500" />
-                                        </div>
-                                        <div>
-                                            <h4 className="font-bold text-white text-lg">RTM ACTIVE</h4>
-                                            <div className="text-xs text-emerald-400 font-mono tracking-wider">{rtmState?.replace('_', ' ')}</div>
-                                        </div>
-                                    </div>
+                        {/* MANUAL PRICE EDIT */}
+                        {isEditingPrice ? (
+                            <div className="bg-slate-900/90 border border-slate-700 p-6 rounded-2xl space-y-4 shadow-2xl animate-in zoom-in duration-300">
+                                <h4 className="font-bold text-white text-lg">Edit Current Price</h4>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-lg font-bold">₹</span>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        defaultValue={currentBid}
+                                        id="manual-price-input"
+                                        className="w-full bg-slate-950 border-2 border-slate-700 rounded-xl px-4 pl-10 py-3 text-xl font-mono text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                                    />
+                                </div>
+                                <div className="flex gap-2">
                                     <button
-                                        onClick={() => {
-                                            if (confirm('Force Reset RTM Phase? This will cancel RTM and allow normal flow.')) {
-                                                useAuctionStore.getState().adminResetRTM();
+                                        onClick={async () => {
+                                            const val = (document.getElementById('manual-price-input') as HTMLInputElement).value;
+                                            setIsProcessing(true);
+                                            try {
+                                                await useAuctionStore.getState().adminUpdateBid(Number(val));
+                                                setIsEditingPrice(false);
+                                            } catch (e) {
+                                                console.error(e);
+                                            } finally {
+                                                setIsProcessing(false);
                                             }
                                         }}
-                                        className="text-xs bg-red-500/10 text-red-400 px-3 py-1.5 rounded-lg border border-red-500/20 hover:bg-red-500/20 transition-colors font-medium"
+                                        className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold"
                                     >
-                                        RESET PHASE
+                                        UPDATE
+                                    </button>
+                                    <button
+                                        onClick={() => setIsEditingPrice(false)}
+                                        className="py-3 px-6 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold"
+                                    >
+                                        CANCEL
                                     </button>
                                 </div>
-
-                                {rtmState === 'PENDING_DECISION' && (
-                                    <div className="space-y-4">
-                                        <div className="text-center space-y-1">
-                                            <h5 className="text-xl font-bold text-slate-200">RTM Decision</h5>
-                                            <p className="text-sm text-slate-400">Does the original team want to exercise Right to Match?</p>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <button
-                                                disabled={isProcessing}
-                                                onClick={async () => {
-                                                    setIsProcessing(true);
-                                                    try {
-                                                        await adminRTMDecision(true);
-                                                    } catch (e) {
-                                                        console.error(e);
-                                                    } finally {
-                                                        setIsProcessing(false);
-                                                    }
-                                                }}
-                                                className="py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white rounded-xl font-black text-lg shadow-lg shadow-emerald-900/30 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:grayscale"
-                                            >
-                                                {isProcessing ? 'Processing...' : 'YES, HIKE'}
-                                            </button>
-                                            <button
-                                                disabled={isProcessing}
-                                                onClick={async () => {
-                                                    setIsProcessing(true);
-                                                    try {
-                                                        await adminRTMDecision(false);
-                                                    } catch (e) {
-                                                        console.error(e);
-                                                    } finally {
-                                                        setIsProcessing(false);
-                                                    }
-                                                }}
-                                                className="py-4 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-lg border-2 border-slate-700 transition-all hover:border-slate-600 disabled:opacity-50"
-                                            >
-                                                {isProcessing ? 'Processing...' : 'NO, SELL'}
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {rtmState === 'AWAITING_HIKE' && (
-                                    <div className="space-y-4">
-                                        <div className="text-center">
-                                            <h5 className="text-lg font-bold text-slate-200 mb-2">Enter Final Bid Amount</h5>
-                                        </div>
-                                        <div className="flex gap-3">
-                                            <div className="relative flex-1">
-                                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-lg font-bold">₹</span>
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    defaultValue={currentBid}
-                                                    id="rtm-hike-input"
-                                                    className="w-full bg-slate-950 border-2 border-slate-700 rounded-xl px-4 pl-10 py-3 text-xl font-mono text-white focus:outline-none focus:border-emerald-500 transition-colors"
-                                                />
-                                            </div>
-                                            <button
-                                                disabled={isProcessing}
-                                                onClick={async () => {
-                                                    const val = (document.getElementById('rtm-hike-input') as HTMLInputElement).value;
-                                                    setIsProcessing(true);
-                                                    try {
-                                                        await adminRTMHike(Number(val));
-                                                    } catch (e) {
-                                                        console.error(e);
-                                                    } finally {
-                                                        setIsProcessing(false);
-                                                    }
-                                                }}
-                                                className="px-8 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-lg shadow-lg disabled:opacity-50"
-                                            >
-                                                SUBMIT
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {rtmState === 'AWAITING_MATCH' && (
-                                    <div className="space-y-4">
-                                        <div className="text-center space-y-1">
-                                            <h5 className="text-xl font-bold text-slate-200">Final Match Decision</h5>
-                                            <p className="text-sm text-slate-400">Match the final bid of <span className="text-white font-bold">₹ {currentBid} Cr</span>?</p>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <button
-                                                disabled={isProcessing}
-                                                onClick={async () => {
-                                                    setIsProcessing(true);
-                                                    try {
-                                                        await adminRTMMatch(true);
-                                                    } catch (e) {
-                                                        console.error(e);
-                                                    } finally {
-                                                        setIsProcessing(false);
-                                                    }
-                                                }}
-                                                className="py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white rounded-xl font-black text-lg shadow-lg shadow-emerald-900/30 transition-all hover:scale-[1.02] disabled:opacity-50"
-                                            >
-                                                MATCH (SELL)
-                                            </button>
-                                            <button
-                                                disabled={isProcessing}
-                                                onClick={async () => {
-                                                    setIsProcessing(true);
-                                                    try {
-                                                        await adminRTMMatch(false);
-                                                    } catch (e) {
-                                                        console.error(e);
-                                                    } finally {
-                                                        setIsProcessing(false);
-                                                    }
-                                                }}
-                                                className="py-4 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold text-lg border-2 border-slate-700 transition-all disabled:opacity-50"
-                                            >
-                                                DECLINE
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
                         ) : (status === 'SOLD' || status === 'UNSOLD') ? (
                             <div className="space-y-4 animate-in zoom-in duration-300">
@@ -455,6 +348,15 @@ export default function AuctioneerDashboard() {
                                     >
                                         <XCircle className="w-6 h-6" />
                                         {isProcessing ? '...' : 'UNSOLD'}
+                                    </button>
+
+                                    {/* Edit Bid Button */}
+                                    <button
+                                        onClick={() => setIsEditingPrice(true)}
+                                        disabled={isProcessing}
+                                        className="col-span-2 py-3 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white font-bold rounded-xl flex items-center justify-center gap-2 border border-slate-700 transition-all text-xs uppercase tracking-wider"
+                                    >
+                                        <span className="text-sm">✏️</span> Edit Price
                                     </button>
                                 </div>
                             </>

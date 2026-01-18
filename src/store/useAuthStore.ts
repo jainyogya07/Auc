@@ -9,11 +9,13 @@ interface AuthState {
     token: string | null;
     login: (credentials: any) => Promise<{ success: boolean; error?: string }>;
     logout: () => void;
+    isCheckingAuth: boolean;
     checkAuth: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
     isAuthenticated: false,
+    isCheckingAuth: true, // Start true to block render until check completes
     role: null,
     username: null,
     teamId: null,
@@ -48,7 +50,8 @@ export const useAuthStore = create<AuthState>((set) => ({
                 token: data.token,
                 role: data.role,
                 username: data.username,
-                teamId: data.teamId
+                teamId: data.teamId,
+                isCheckingAuth: false
             });
             return { success: true };
         } catch (err) {
@@ -60,8 +63,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     logout: () => {
         localStorage.removeItem('auc_token');
         localStorage.removeItem('auc_user');
-        set({ isAuthenticated: false, role: null, username: null, teamId: null, token: null });
-        window.location.href = '/'; // Hard reload to clear socket state
+        set({ isAuthenticated: false, role: null, username: null, teamId: null, token: null, isCheckingAuth: false });
+        window.location.href = '/';
     },
 
     checkAuth: () => {
@@ -76,11 +79,15 @@ export const useAuthStore = create<AuthState>((set) => ({
                     token,
                     role: user.role,
                     username: user.username,
-                    teamId: user.teamId
+                    teamId: user.teamId,
+                    isCheckingAuth: false
                 });
             } catch (e) {
                 localStorage.clear();
+                set({ isCheckingAuth: false });
             }
+        } else {
+            set({ isCheckingAuth: false });
         }
     }
 }));

@@ -57,9 +57,10 @@ interface AuctionStore extends AuctionState {
     deletePlayer: (id: string) => void;
     executeRTM: (playerId: string, teamId: string, amount?: number) => void;
 
-    adminRTMDecision: (decision: boolean) => void;
-    adminRTMHike: (amount: number) => void;
-    adminRTMMatch: (match: boolean) => void;
+    adminRTMDecision: (decision: boolean) => Promise<void>;
+    adminRTMHike: (amount: number) => Promise<void>;
+    adminRTMMatch: (match: boolean) => Promise<void>;
+    adminUpdateBid: (amount: number) => Promise<void>;
     adminResetRTM: () => void;
 
     // Team Management
@@ -349,6 +350,14 @@ export const useAuctionStore = create<AuctionStore>()((set, _get) => {
             });
         },
 
+        adminUpdateBid: (amount) => {
+            return new Promise((resolve, reject) => {
+                getSocket().emit('admin:updateBid', { amount }, (res: any) => {
+                    if (res?.error) reject(res.error);
+                    else resolve();
+                });
+            });
+        },
 
         adminResetRTM: () => {
             socket.emit('admin:reset-rtm');

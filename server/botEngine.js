@@ -255,40 +255,40 @@ class BotEngine {
 
         // === INTELLIGENT LIMIT CALCULATION ===
         // Base varies by personality
-        let baseMultiplier = personality.type === 'aggressive' ? 2.0 :
-            personality.type === 'balanced' ? 1.5 : 1.2;
+        let baseMultiplier = personality.type === 'aggressive' ? 3.5 :
+            personality.type === 'balanced' ? 2.5 : 2.0;
         let limit = avgBudgetPerSlot * baseMultiplier;
 
         // 1. Role Need (Critical > High > Medium > Low)
-        if (roleNeeded === 'CRITICAL') limit *= 3.5;  // Must have!
-        else if (roleNeeded === 'HIGH') limit *= 2.2;
-        else if (roleNeeded === 'MEDIUM') limit *= 1.6;
+        if (roleNeeded === 'CRITICAL') limit *= 4.0;  // Must have!
+        else if (roleNeeded === 'HIGH') limit *= 2.8;
+        else if (roleNeeded === 'MEDIUM') limit *= 1.8;
 
         // 2. Player Quality Adjustment
-        const qualityMultiplier = 1 + (playerScore / 100);
+        const qualityMultiplier = 1 + (playerScore / 80); // More impact
         limit *= qualityMultiplier;
 
         // 3. Market Intelligence
         if (marketValue > 0) {
             const marketFactor = marketValue / player.basePrice;
-            if (marketFactor > 2.5) limit *= 1.3; // Very hot market
-            else if (marketFactor > 2.0) limit *= 1.2; // Hot market
-            else if (marketFactor < 1.0) limit *= 0.85; // Cold market
+            if (marketFactor > 2.5) limit *= 1.5; // Very hot market
+            else if (marketFactor > 2.0) limit *= 1.3; // Hot market
+            else if (marketFactor < 1.0) limit *= 0.9; // Cold market
         }
 
         // 4. Value-for-Money Check
-        if (valueScore > 80) limit *= 1.15; // Great value, pay more
+        if (valueScore > 80) limit *= 1.3; // Great value, pay more
         else if (valueScore < 30) limit *= 0.9; // Poor value, reduce
 
         // 5. Auction Phase Strategy
         if (this.auctionPhase === 'early') {
-            limit *= 0.85; // Very conservative early
+            limit *= 1.0; // Early phase regular behavior
         } else if (this.auctionPhase === 'late') {
             // End-game desperation
             if (needs.wicketKeepers < 1 || team.squadCount < 11) {
-                limit *= 1.4; // Desperate!
+                limit *= 2.0; // Desperate!
             } else if (roleNeeded === 'HIGH') {
-                limit *= 1.2; // Still need key players
+                limit *= 1.5; // Still need key players
             }
         }
 
@@ -298,7 +298,7 @@ class BotEngine {
             if (roleNeeded !== 'CRITICAL' && personality.type === 'conservative') {
                 limit *= 0.8; // Pull back, save for later
             } else if (personality.type === 'aggressive') {
-                limit *= 1.1; // Fight harder!
+                limit *= 1.3; // Fight harder!
             }
         }
 
@@ -313,21 +313,21 @@ class BotEngine {
 
         // 8. Star Player Premium (personality-based)
         if (player.basePrice >= 2.0 && playerScore > 70) {
-            const starBonus = player.basePrice * personality.starMultiplier;
+            const starBonus = player.basePrice * personality.starMultiplier * 1.5;
             limit = Math.max(limit, starBonus);
         }
 
         // 9. Risk Tolerance (personality trait)
-        if (nextBid > avgBudgetPerSlot * 3 && Math.random() > personality.riskTolerance) {
+        if (nextBid > avgBudgetPerSlot * 4 && Math.random() > personality.riskTolerance) {
             return { shouldBid: false, reason: 'Risk threshold exceeded for personality' };
         }
 
         // === ABSOLUTE CONSTRAINTS ===
-        const absoluteCeiling = (team.purse * MAX_PURSE_PERCENT_PER_PLAYER) / 100;
+        const absoluteCeiling = (team.purse * (MAX_PURSE_PERCENT_PER_PLAYER + 10)) / 100; // Increased to 25%
         limit = Math.min(limit, absoluteCeiling);
 
         // Emergency reserve for remaining slots
-        const emergencyReserve = remainingSlots * 0.3;
+        const emergencyReserve = remainingSlots * 0.2; // Reduced reserve requirement
         const maxSafeSpend = team.purse - emergencyReserve;
         limit = Math.min(limit, maxSafeSpend);
 
@@ -337,8 +337,8 @@ class BotEngine {
 
         // === FINAL DECISION ===
         // Smart hesitation - personality and value based
-        const hesitationChance = personality.type === 'conservative' ? 0.20 :
-            personality.type === 'balanced' ? 0.15 : 0.10;
+        const hesitationChance = personality.type === 'conservative' ? 0.10 :
+            personality.type === 'balanced' ? 0.05 : 0.02;
         if (nextBid > 5 && roleNeeded === 'LOW' && valueScore < 50 && Math.random() < hesitationChance) {
             return { shouldBid: false, reason: 'Strategic hesitation' };
         }

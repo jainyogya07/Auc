@@ -71,6 +71,13 @@ const playerSchema = new mongoose.Schema({
     retentionAmount: Number
 });
 
+const logSchema = new mongoose.Schema({
+    id: String,
+    type: { type: String, required: true },
+    timestamp: { type: Number, default: Date.now },
+    details: mongoose.Schema.Types.Mixed
+}, { timestamps: true });
+
 // Auction State Schema (Singleton)
 const auctionStateSchema = new mongoose.Schema({
     status: { type: String, default: 'IDLE' },
@@ -86,12 +93,7 @@ const auctionStateSchema = new mongoose.Schema({
         amount: Number,
         timestamp: Number
     }],
-    eventLog: [{
-        id: String,
-        type: { type: String },
-        timestamp: Number,
-        details: mongoose.Schema.Types.Mixed
-    }],
+    // Removed eventLog to prevent 16MB limit explosion
     isPaused: { type: Boolean, default: true },
     rtmState: { type: String, enum: [null, 'PENDING_DECISION', 'AWAITING_HIKE', 'AWAITING_MATCH'], default: null },
     timerExpiresAt: Number,
@@ -119,5 +121,16 @@ const Team = mongoose.model('Team', teamSchema);
 const Player = mongoose.model('Player', playerSchema);
 const AuctionState = mongoose.model('AuctionState', auctionStateSchema);
 const User = mongoose.model('User', userSchema);
+const Log = mongoose.model('Log', logSchema);
 
-module.exports = { Team, Player, AuctionState, User };
+// Indexes
+playerSchema.index({ id: 1 });
+playerSchema.index({ status: 1 });
+playerSchema.index({ set: 1 });
+playerSchema.index({ soldTo: 1 });
+teamSchema.index({ id: 1 });
+teamSchema.index({ inviteCode: 1 });
+logSchema.index({ timestamp: -1 });
+logSchema.index({ type: 1 });
+
+module.exports = { Team, Player, AuctionState, User, Log };

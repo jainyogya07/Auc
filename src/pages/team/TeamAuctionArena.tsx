@@ -200,12 +200,12 @@ export default function TeamAuctionArena() {
 
     if (!currentPlayer) {
         return (
-            <div className="h-full flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-700">
-                <div className="bg-slate-900/50 border border-slate-800 p-16 rounded-3xl shadow-2xl max-w-lg w-full flex flex-col items-center relative overflow-hidden">
+            <div className="h-full flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-700 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black">
+                <div className="bg-white/5 border border-white/10 p-16 rounded-[2.5rem] shadow-2xl max-w-lg w-full flex flex-col items-center relative overflow-hidden backdrop-blur-2xl">
                     {/* Background Glow */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl"></div>
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-indigo-500/20 rounded-full blur-[100px]"></div>
 
-                    <div className="relative z-10 w-24 h-24 bg-slate-900/80 rounded-full flex items-center justify-center mb-8 border border-slate-700 shadow-xl">
+                    <div className="relative z-10 w-28 h-28 bg-slate-900/50 rounded-full flex items-center justify-center mb-8 border border-white/10 shadow-2xl backdrop-blur-xl">
                         <motion.div
                             animate={{
                                 scale: [1, 1.1, 1],
@@ -214,7 +214,7 @@ export default function TeamAuctionArena() {
                             transition={{ duration: 2, repeat: Infinity }}
                         >
                             <svg
-                                className="w-10 h-10 text-indigo-400"
+                                className="w-12 h-12 text-indigo-400 drop-shadow-[0_0_15px_rgba(99,102,241,0.5)]"
                                 fill="none"
                                 viewBox="0 0 24 24"
                                 stroke="currentColor"
@@ -225,13 +225,13 @@ export default function TeamAuctionArena() {
                         </motion.div>
                     </div>
 
-                    <h2 className="text-3xl font-bold text-white mb-4">Waiting for Auctioneer</h2>
-                    <p className="text-slate-400 mb-10 text-lg leading-relaxed">
+                    <h2 className="text-4xl font-black text-white mb-4 tracking-tight">Waiting for Auctioneer</h2>
+                    <p className="text-slate-400 mb-10 text-lg leading-relaxed font-medium">
                         The auction has not started yet. Please wait for the admin to initiate the session.
                     </p>
 
-                    <div className="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-slate-800/50 border border-emerald-500/30 text-emerald-400 font-medium text-sm">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]"></span>
+                    <div className="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-emerald-950/30 border border-emerald-500/30 text-emerald-400 font-bold text-sm backdrop-blur-lg">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.8)]"></span>
                         Connected & Waiting...
                     </div>
                 </div>
@@ -242,29 +242,29 @@ export default function TeamAuctionArena() {
     // --- Components for Reuse ---
 
     const PlayerCard = ({ className }: { className?: string }) => (
-        <div className={cn("bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8 relative overflow-hidden flex flex-col justify-center items-center shadow-2xl shrink-0 lg:shrink", className)}>
-            <div className="absolute inset-0 bg-gradient-to-b from-slate-900 via-slate-900 to-emerald-950/20" />
+        <div className={cn("bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] p-6 md:p-8 relative overflow-hidden flex flex-col justify-center items-center shadow-2xl shrink-0 lg:shrink", className)}>
+            <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/5 via-transparent to-emerald-500/5 pointer-events-none" />
             <div className="relative z-10 text-center w-full max-w-2xl">
                 <div className="flex justify-center mb-4 md:mb-6">
-                    <div className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-slate-700 bg-slate-800 flex items-center justify-center shadow-2xl relative">
-                        <span className="text-4xl md:text-5xl">🏏</span>
-                        {currentPlayer.isForeign && <span className="absolute top-0 right-0 bg-amber-500 text-slate-950 text-xs font-bold px-2 py-1 rounded-full">✈️</span>}
+                    <div className="w-32 h-32 md:w-48 md:h-48 rounded-full border-4 border-white/10 bg-slate-900/50 flex items-center justify-center shadow-2xl relative backdrop-blur-md">
+                        <span className="text-4xl md:text-6xl filter drop-shadow-lg">🏏</span>
+                        {currentPlayer.isForeign && <span className="absolute top-0 right-0 bg-amber-500 text-black text-xs md:text-sm font-black px-3 py-1.5 rounded-full shadow-lg border-2 border-white/20">✈️</span>}
                     </div>
                 </div>
 
-                <h1 className="text-2xl md:text-5xl font-black text-white mb-2 tracking-tight">{currentPlayer.name}</h1>
-                <div className="flex justify-center gap-3 text-sm md:text-lg text-slate-400 mb-6 md:mb-8 font-medium">
-                    <span className="px-3 py-1 bg-slate-800/50 rounded-lg">{currentPlayer.role}</span>
-                    <span className="w-px h-6 bg-slate-700"></span>
-                    <span className="px-3 py-1 bg-slate-800/50 rounded-lg">{currentPlayer.country}</span>
+                <h1 className="text-3xl md:text-6xl font-black text-white mb-2 tracking-tight drop-shadow-2xl">{currentPlayer.name}</h1>
+                <div className="flex justify-center gap-3 text-sm md:text-lg text-slate-300 mb-6 md:mb-8 font-bold tracking-wide">
+                    <span className="px-4 py-1.5 bg-white/5 border border-white/10 rounded-full backdrop-blur-sm">{currentPlayer.role}</span>
+                    <span className="w-px h-6 bg-white/20"></span>
+                    <span className="px-4 py-1.5 bg-white/5 border border-white/10 rounded-full backdrop-blur-sm">{currentPlayer.country}</span>
                 </div>
 
                 {/* Active Bidders Indicator */}
-                <div className="flex items-center justify-center gap-2 mb-4">
-                    <div className="bg-slate-900/80 border border-slate-700 rounded-full px-4 py-1.5 flex items-center gap-2 shadow-lg">
-                        <span className="relative flex h-2.5 w-2.5">
+                <div className="flex items-center justify-center gap-2 mb-6">
+                    <div className="bg-black/30 border border-white/10 rounded-full px-5 py-2 flex items-center gap-3 shadow-inner backdrop-blur-sm">
+                        <span className="relative flex h-3 w-3">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]"></span>
                         </span>
                         <span className="text-sm font-bold text-slate-300">
                             <span className="text-white">{activeBiddersCount}</span> / <span className="text-slate-500">{totalTeams}</span> Active Bidders
@@ -273,14 +273,14 @@ export default function TeamAuctionArena() {
                 </div>
 
                 <div className={cn(
-                    "py-6 px-4 md:py-8 md:px-12 rounded-2xl border-2 transition-all duration-300 transform relative overflow-hidden",
-                    isLeading ? "bg-emerald-500/10 border-emerald-500/50 scale-105" : "bg-slate-800/50 border-slate-700"
+                    "py-6 px-4 md:py-10 md:px-16 rounded-3xl border transition-all duration-300 transform relative overflow-hidden backdrop-blur-md select-none",
+                    isLeading ? "bg-emerald-500/10 border-emerald-500/50 scale-105 shadow-[0_0_50px_rgba(16,185,129,0.2)]" : "bg-white/5 border-white/10"
                 )}>
                     {/* Visual Countdown Overlay if Timer Active */}
                     {timeLeft !== null && timeLeft > 0 && (
                         <div className="absolute inset-x-0 top-0 h-1 bg-red-500/20">
                             <motion.div
-                                className="h-full bg-red-500"
+                                className="h-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]"
                                 initial={{ width: '100%' }}
                                 animate={{ width: '0%' }}
                                 transition={{ duration: 60, ease: "linear" }}
@@ -288,18 +288,18 @@ export default function TeamAuctionArena() {
                         </div>
                     )}
 
-                    <div className="text-xs md:text-sm font-bold tracking-widest uppercase mb-1 text-slate-400">Current Bid</div>
-                    <div className="text-3xl md:text-6xl font-black text-white tabular-nums tracking-tighter">
-                        ₹ {currentBid.toFixed(2)} <span className="text-lg md:text-2xl text-slate-500 font-bold">Cr</span>
+                    <div className="text-xs md:text-sm font-black tracking-[0.2em] uppercase mb-2 text-slate-400">Current Bid</div>
+                    <div className="text-4xl md:text-7xl font-black text-white tabular-nums tracking-tighter drop-shadow-xl">
+                        ₹ {currentBid.toFixed(2)} <span className="text-xl md:text-3xl text-emerald-400 font-bold">Cr</span>
                     </div>
                     {/* Timer Display - Only when active */}
                     {timeLeft !== null && (
-                        <div className="mt-4 flex justify-center">
+                        <div className="mt-6 flex justify-center">
                             {timerExpiresAt ? (
                                 <SynchronizedTimer expiresAt={timerExpiresAt} />
                             ) : (
-                                <div className={cn("text-3xl font-black w-14 h-14 md:w-20 md:h-20 rounded-full flex items-center justify-center mx-auto border-4",
-                                    timeLeft <= 10 ? "text-rose-500 border-rose-500 animate-pulse bg-rose-500/10" : "text-amber-500 border-amber-500 bg-amber-500/10"
+                                <div className={cn("text-4xl font-black w-16 h-16 md:w-24 md:h-24 rounded-full flex items-center justify-center mx-auto border-[6px] backdrop-blur-xl shadow-2xl",
+                                    timeLeft <= 10 ? "text-rose-500 border-rose-500 animate-pulse bg-rose-500/20 shadow-rose-900/50" : "text-amber-500 border-amber-500 bg-amber-500/20"
                                 )}>
                                     {timeLeft}
                                 </div>
@@ -308,8 +308,8 @@ export default function TeamAuctionArena() {
                     )}
 
                     {currentBidder && timeLeft === null && (
-                        <div className="mt-2 text-sm md:text-lg font-medium text-emerald-400 flex items-center justify-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <div className="mt-4 text-sm md:text-xl font-bold text-emerald-400 flex items-center justify-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.8)]"></span>
                             Winning: {leadingTeam?.name}
                         </div>
                     )}

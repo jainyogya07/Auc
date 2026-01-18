@@ -1,4 +1,4 @@
-const { Team, Player, AuctionState, User } = require('./models');
+const { AuctionState, Team, Player, Log, User } = require('./models');
 const { INITIAL_TEAMS, INITIAL_PLAYERS } = require('./mockData');
 const BotEngine = require('./botEngine');
 
@@ -33,6 +33,12 @@ class AuctionManager {
                 isPaused: true,
                 settings: { defaultDuration: 60, resetDuration: 30 }
             });
+        } else {
+            // Migration: Remove legacy eventLog if exists
+            if (auctionState.toObject().eventLog) {
+                console.log('Migrating: Removing legacy eventLog from AuctionState...');
+                await AuctionState.updateOne({}, { $unset: { eventLog: 1 } });
+            }
         }
 
         // 2. Ensure Teams Exist
@@ -92,26 +98,63 @@ class AuctionManager {
     }
 
     // Load full state helper
-    async syncState() {
+    async syncState(forceFull = false) {
         const auctionState = await AuctionState.findOne();
         if (!auctionState) {
             throw new Error('Auction state not found. Please reinitialize.');
         }
-        const teams = await Team.find();
-        const players = await Player.find();
 
-        let currentPlayer = null;
-        if (auctionState.currentPlayerId) {
-            currentPlayer = players.find(p => p.id === auctionState.currentPlayerId) || null;
+        // Cache hit check: If we have players/teams and not forcing full update, skip fetching them
+        if (!this.state || !this.state.teams || !this.state.players || forceFull) {
+            console.log('[Store] Fetching FULL state (Players & Teams) from DB');
+            const teams = await Team.find();
+            const players = await Player.find();
+
+            this.lastPlayersFetch = Date.now();
+            this.lastTeamsFetch = Date.now();
+
+            this.state = {
+                ...auctionState.toObject(),
+                teams: teams.map(t => t.toObject()),
+                players: players.map(p => p.toObject()),
+            };
+        } else {
+            // Lightweight update: Just update the dynamic auction state parts
+            // We assume players/teams are updated in memory by the specialized methods (soldPlayer, etc)
+            // or rarely changed from outside.
+            const stateObj = auctionState.toObject();
+            this.state = {
+                ...this.state,
+                ...stateObj,
+                // Preserving players and teams from memory unless explicitly overwritten above
+            };
         }
 
-        this.state = {
-            ...auctionState.toObject(),
-            teams: teams.map(t => t.toObject()),
-            players: players.map(p => p.toObject()),
-            currentPlayer // Hydrate the player object for frontend
-        };
+        // Re-hydrate current player reference
+        if (this.state.currentPlayerId) {
+            this.state.currentPlayer = this.state.players.find(p => p.id === this.state.currentPlayerId) || null;
+        } else {
+            this.state.currentPlayer = null;
+        }
+
         return this.state;
+    }
+
+    // Force refresh specific entities
+    async refreshPlayers() {
+        console.log('[Store] Refreshing Players Cache');
+        const players = await Player.find();
+        if (this.state) {
+            this.state.players = players.map(p => p.toObject());
+        }
+    }
+
+    async refreshTeams() {
+        console.log('[Store] Refreshing Teams Cache');
+        const teams = await Team.find();
+        if (this.state) {
+            this.state.teams = teams.map(t => t.toObject());
+        }
     }
 
     getState() {
@@ -120,16 +163,17 @@ class AuctionManager {
 
     // --- Helper for Logging ---
     async logEvent(type, details) {
-        const entry = {
-            id: Math.random().toString(36).substr(2, 9),
-            type,
-            timestamp: Date.now(),
-            details
-        };
-
-        await AuctionState.updateOne({}, { $push: { eventLog: entry } });
-        // Optimistic update
-        if (this.state) this.state.eventLog.push(entry);
+        try {
+            await Log.create({
+                id: Math.random().toString(36).substr(2, 9),
+                type,
+                timestamp: Date.now(),
+                details
+            });
+            // We do NOT update this.state.eventLog anymore as it's not needed in frontend state loop
+        } catch (e) {
+            console.error('Logging failed:', e);
+        }
     }
 
     // --- Timer Logic (Smart 2-Step) ---
@@ -221,16 +265,12 @@ class AuctionManager {
         if (team.purse < bidAmount) throw new Error(`Insufficient purse! (Has: ${team.purse}, Bid: ${bidAmount})`);
 
         // Anti-Snipe Validation - DISABLED to prevent clock drift issues
-        // if (this.state.timerExpiresAt) {
-        //     const timeLeft = this.state.timerExpiresAt - Date.now();
-        //     if (timeLeft < 250 && timeLeft > 0) {
-        //         throw new Error('Anti-Snipe Protection: Bid Locked! (Too late)');
-        //     }
+        // const timeLeft = this.state.timerExpiresAt ? (this.state.timerExpiresAt - Date.now()) : 0;
+        // if (timeLeft > 0 && timeLeft < 5000) {
+        //     // Extend timer by 10s
+        //     // ...
         // }
 
-        // Updates
-        // RESET Timer Logic: New bid = Reset to "Idle Phase" (2 mins hidden timer)
-        this.startBidTimer();
 
         // We do NOT set timerExpiresAt here anymore. It stays null until "Closing Phase".
         const newTimerExpiresAt = null;
@@ -373,15 +413,15 @@ class AuctionManager {
         if (team.squadCount >= 25) throw new Error('Squad full');
         if (player.isForeign && team.foreignPlayers >= 8) throw new Error('Foreign limit reached');
 
-        // Check RTM Eligibility (IPL 2025 Rule)
-        // If player has originalTeamId AND that team is NOT the current bidder
+        // Check RTM Eligibility (IPL 2025 Rule) - DISABLED per user request (Manual Mode)
+        /*
         if (player.originalTeamId && player.originalTeamId !== teamId) {
             const originalTeam = this.state.teams.find(t => t.id === player.originalTeamId);
             if (originalTeam && originalTeam.rtmCardsLeft > 0) {
                 // ENTER RTM PHASE
                 await AuctionState.updateOne({}, {
-                    rtmState: 'PENDING_DECISION',
-                    timerExpiresAt: null
+                   rtmState: 'PENDING_DECISION',
+                   timerExpiresAt: null
                 });
                 await this.logEvent('RTM_PHASE_START', {
                     playerId,
@@ -389,9 +429,10 @@ class AuctionManager {
                     winner: team.name,
                     bid: amount
                 });
-                return await this.syncState();
+               return await this.syncState();
             }
         }
+        */
 
         // Standard Sale (No RTM or RTM Declined previously)
         return await this.finalizeSale(playerId, teamId, finalAmount, 'BID');
@@ -425,7 +466,6 @@ class AuctionManager {
         await AuctionState.updateOne({}, {
             status: 'SOLD',
             rtmState: null,
-            rtmState: null,
             timerExpiresAt: null
         });
 
@@ -435,6 +475,10 @@ class AuctionManager {
 
         // Update bot market intelligence
         this.botEngine.updateMarketIntelligence(player, amount, teamId);
+
+        // Explicitly update STATE immediately before syncing, although syncState fetches DB.
+        // This is to be doubly sure, but since syncState fetches DB, we rely on that.
+        // We will call syncState immediately.
 
         return await this.syncState();
     }
@@ -543,8 +587,10 @@ class AuctionManager {
 
 
     async unsoldPlayer(playerId) {
-        await Player.updateOne({ id: playerId }, { $set: { status: 'US' } });
         const player = this.state.players.find(p => p.id === playerId);
+        if (!player) throw new Error('Player not found');
+
+        await Player.updateOne({ id: playerId }, { status: 'US' });
 
         await AuctionState.updateOne({}, {
             status: 'UNSOLD',
@@ -554,7 +600,12 @@ class AuctionManager {
             timerExpiresAt: null
         });
 
-        await this.logEvent('PLAYER_UNSOLD', { playerId, name: player?.name });
+        // Optimistic Memory Update
+        player.status = 'US';
+
+        this.clearTimers();
+
+        await this.logEvent('PLAYER_UNSOLD', { playerId, name: player.name });
         return await this.syncState();
     }
 
@@ -674,9 +725,18 @@ class AuctionManager {
         return await this.syncState();
     }
 
-    async updatePlayer(playerId, updates) {
-        await Player.updateOne({ id: playerId }, { $set: updates });
-        await this.logEvent('PLAYER_UPDATED', { playerId, updates });
+    async updatePlayer(id, updates) {
+        await Player.updateOne({ id }, { $set: updates });
+        await this.logEvent('PLAYER_UPDATED', { id, updates });
+
+        // Optimistic Memory Update
+        if (this.state && this.state.players) {
+            const pIndex = this.state.players.findIndex(p => p.id === id);
+            if (pIndex !== -1) {
+                this.state.players[pIndex] = { ...this.state.players[pIndex], ...updates };
+            }
+        }
+
         return await this.syncState();
     }
 
@@ -723,6 +783,21 @@ class AuctionManager {
             }
         });
 
+        // Optimistic
+        if (player) {
+            player.status = 'S';
+            player.soldPrice = rtmAmount;
+            player.soldTo = teamId;
+            player.soldVia = 'RTM';
+        }
+        if (team) {
+            team.purse -= rtmAmount;
+            team.purseUsed += rtmAmount;
+            team.squadCount += 1;
+            if (player.isForeign) team.foreignPlayers += 1;
+            team.rtmCardsLeft -= 1;
+        }
+
         // 3. Update Auction State (if this was the current player, reset)
         if (this.state.currentPlayerId === playerId) {
             await AuctionState.updateOne({}, {
@@ -762,6 +837,15 @@ class AuctionManager {
     async updateTeam(teamId, updates) {
         await Team.updateOne({ id: teamId }, { $set: updates });
         await this.logEvent('TEAM_UPDATED', { teamId, updates });
+
+        // Optimistic Memory Update
+        if (this.state && this.state.teams) {
+            const tIndex = this.state.teams.findIndex(t => t.id === teamId);
+            if (tIndex !== -1) {
+                this.state.teams[tIndex] = { ...this.state.teams[tIndex], ...updates };
+            }
+        }
+
         return await this.syncState();
     }
 

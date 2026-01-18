@@ -184,6 +184,7 @@ io.on('connection', (socket) => {
 
     socket.on('team:pass', async ({ teamId }, ack) => {
         try {
+            console.log(`[Socket] team:pass received from ${teamId}`);
             if (socket.user.role === 'team' && socket.user.teamId !== teamId) {
                 throw new Error('Unauthorized');
             }
@@ -191,6 +192,7 @@ io.on('connection', (socket) => {
             io.emit('auction:update', newState);
             if (typeof ack === 'function') ack({ success: true });
         } catch (err) {
+            console.error('[Socket] team:pass error:', err.message);
             if (typeof ack === 'function') ack({ error: sanitizeError(err) });
             else socket.emit('error', sanitizeError(err));
         }

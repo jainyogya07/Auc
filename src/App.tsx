@@ -26,7 +26,7 @@ import AdminSetManagement from './pages/admin/AdminSetManagement';
 import AuctioneerUpcoming from './pages/auctioneer/AuctioneerUpcoming';
 
 function App() {
-  const { isAuthenticated, checkAuth } = useAuthStore();
+  const { isAuthenticated, checkAuth, isCheckingAuth } = useAuthStore();
   const { connectSocket, disconnectSocket } = useAuctionStore();
 
   useEffect(() => {
@@ -36,10 +36,21 @@ function App() {
   useEffect(() => {
     if (isAuthenticated) {
       connectSocket();
-    } else {
+    } else if (!isCheckingAuth) {
       disconnectSocket();
     }
-  }, [isAuthenticated, connectSocket, disconnectSocket]);
+  }, [isAuthenticated, isCheckingAuth, connectSocket, disconnectSocket]);
+
+  if (isCheckingAuth) {
+    return (
+      <div className="h-screen w-screen bg-slate-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin"></div>
+          <div className="text-emerald-500 font-bold animate-pulse">Loading Auction...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <BrowserRouter>
